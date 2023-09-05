@@ -13,7 +13,11 @@
           inherit  system;
         };
         py = pkgs.python310Packages;
+        python = py.python;
 
+        dev_run = pkgs.writeScriptBin "run" ''
+          python -m flask --app ./main.py --debug run
+        '';
 
       in
         {
@@ -23,8 +27,9 @@
             root = ./.;
 
             buildInputs = [
+              dev_run
               pkgs.vscode-langservers-extracted
-              py.python
+              python
               py.venvShellHook
               py.black
               py.flask
