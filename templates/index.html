@@ -1,0 +1,34 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+
+<form action="/contacts", method="get", class="tool-bar">
+  <label for="search">Search Term</label> 
+  <input id="search" type="search" name="q" value="{{ request.args.get('q') or '' }}"/>
+  <input type="submit" value="Search"/>
+</form>
+
+<table>
+  <thead>
+  <tr>
+    <th>Name</th> <th>Email</th> <th>Links</th>
+  </tr>
+  </thead>
+
+  <tbody>
+  {% for contact in contacts.items %}
+    <tr>
+      <td>{{ contact.name}}</td>
+      <td>{{ contact.email}}</td>
+      <td><a href="/contects/{{ contact.id }}">View</a></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<p>
+  <a href="/contacts/new">Add Contact</a>
+</p>
+
+{% endblock %}
+
