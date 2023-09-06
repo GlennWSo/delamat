@@ -1,3 +1,6 @@
+# pickles
+*.pickle
+
 # nix direnv
 .direnv
 .envrc
