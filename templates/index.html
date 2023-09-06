@@ -16,11 +16,14 @@
   </thead>
 
   <tbody>
-  {% for contact in contacts.items %}
+  {% for contact in contacts %}
     <tr>
       <td>{{ contact.name}}</td>
       <td>{{ contact.email}}</td>
-      <td><a href="/contects/{{ contact.id }}">View</a></td>
+      <td>
+          <a href="/contacts/{{ contact.id }}">View</a>
+          <a href="/contacts/{{ contact.id }}/edit">Edit</a>
+          </td>
     </tr>
   {% endfor %}
   </tbody>

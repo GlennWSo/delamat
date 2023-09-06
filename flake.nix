@@ -12,7 +12,7 @@
         pkgs = import nixpkgs {
           inherit  system;
         };
-        py = pkgs.python310Packages;
+        py = pkgs.python311Packages;
         python = py.python;
 
         dev_run = pkgs.writeScriptBin "run" ''
@@ -33,6 +33,7 @@
               py.venvShellHook
               py.black
               py.flask
+              py.email-validator
             ];
             PY = py.python;
 

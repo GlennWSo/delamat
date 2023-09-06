@@ -1,0 +1,24 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<form action="/contacts/new" method="post">
+	<fieldset>
+		<legend>Contect Values</legend>
+		<p>
+			<label for="name">Name</label>
+			<input name="name" id="name" placeholder="name@example.org" value="{{ contact.name }}">
+      <span class="error">{{ contact.errors['name'] }}</span>
+		</p>
+		<p>
+			<label for="email">Email</label>
+			<input name="email" id="email" type="email" placeholder="email@example.org" value="{{ contact.email }}">
+      <span class="error">{{ contact.email_errors() }}</span>
+		</p>
+		<button>Save</button>
+	</fieldset>
+</form>
+
+<p>
+	<a href="/contacts">Back</a>
+</p>
+{% endblock %}
