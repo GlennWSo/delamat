@@ -27,9 +27,9 @@ class Contact:
             self.errors["email"].update({e})
             ok = False
 
-        all_emails = [c.email for c in contacts]
-        print(all_emails)
-        if self.email in all_emails:
+        emails = [c.email for c in contacts if c.id != self.id]
+        print(emails)
+        if self.email in emails:
             self.errors["email"].update({NotUniqueError("this email is not new")})
             ok = False
 
@@ -38,16 +38,18 @@ class Contact:
 
     def save(self, contacts) -> bool:
         ok = self.validate_email(contacts)
+        print("ok", ok)
         if ok:
             self.id = len(contacts)
             contacts.contacts.append(self)
+            print("updated contacts:", contacts)
             contacts.write()
         return ok
 
 
 class Contacts:
     def __init__(self, contacts):
-        self.contacts = contacts
+        self.contacts: List = contacts
 
     def write(self):
         with open("c.pickle", mode="wb") as file:
@@ -60,6 +62,20 @@ class Contacts:
         new = cls(list(obj))
         print(new)
         return new
+
+    def find(self, id):
+        for c in self:
+            if c.id == int(id):
+                return c
+        return None
+
+    def pop(self, id):
+        index = None
+        for i, c in enumerate(self):
+            if c.id == int(id):
+                index = i
+                return self.contacts.pop(index)
+        raise IndexError("id not in contacts")
 
     def search(self, x):
         return [c for c in self if x in c.name]
@@ -74,7 +90,7 @@ class Contacts:
         return len(self.contacts)
 
 
-alice = Contact(0, "alice", "aws@mail.to")
-bob = Contact(1, "bob", "bob@mail.to")
-init_contacts = Contacts([alice, bob])
-init_contacts.write()
+# alice = Contact(0, "alice", "aws@mail.to")
+# bob = Contact(1, "bob", "bob@mail.to")
+# init_contacts = Contacts([alice, bob])
+# init_contacts.write()

@@ -23,12 +23,13 @@
       <td>
           <a href="/contacts/{{ contact.id }}">View</a>
           <a href="/contacts/{{ contact.id }}/edit">Edit</a>
+          <a href="/contacts/{{ contact.id }}/delete">Delete</a>
           </td>
     </tr>
   {% endfor %}
   </tbody>
 </table>
-
+<hr>
 <p>
   <a href="/contacts/new">Add Contact</a>
 </p>

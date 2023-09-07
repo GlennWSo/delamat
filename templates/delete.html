@@ -1,0 +1,20 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<h3>Delete {{contact.name}}?</h1>
+<h4>with email: {{contact.email}}</h4>
+<form action="/contacts/{{ contact.id }}/delete" method="POST">
+	<fieldset>
+		<button>Delete</button>
+	</fieldset>
+</form>
+			
+
+<p>
+	<a href="/contacts/{{contact.id}}">View</a>
+	<a href="/contacts/{{contact.id}}/edit">Edit</a>
+	<a href="/contacts">Back</a>
+</p>
+
+{% endblock %}
+
