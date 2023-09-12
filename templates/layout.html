@@ -12,18 +12,15 @@
 <body>
 <h1>Contact App</h1>
 <h2>A HTMX Demo</h2>
-{% with messages = get_flashed_messages() %}
-  {% if messages %}
-    {% for message in messages %}
+{% for message in messages %}
     <div class="alert alert-success alert-dismissible fade show" role="alert">
         {{ message }}
         <button type="button" class="close" data-dismiss="alert" aria-label="Close">
         <span aria-hidden="true">&times;</span>
       </button>
     </div>
-    {% endfor %}
-  {% endif %}
-{% endwith %}<hr>
+{% endfor %}
+<hr>
 {% block content %}
 {% endblock %}
 <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
