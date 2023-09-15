@@ -7,12 +7,18 @@
 		<legend>Contact Values</legend>
 		<p>
 			<label for="name">Name</label>
-			<input name="name" id="name" type="text" placeholder="Name" value="{{ contact.name }}"
+			<input name="name" id="name" type="text" placeholder="Name" value="{{ contact.name }}">
 		</p>
 		<p>
 			<label for="email">Email</label>
-			<input name="email" id="email" type="email" placeholder="Email" value="{{ contact.email }}"
-      <span class="error"> placeholder </span>
+			<input name="email" id="email" type="email" placeholder="Email" value="{{ contact.email }}">
+			{% match email_error %}
+			  {% when Some with (val) %}
+		      <span class="error"> 
+				    {{ val }}
+					</span>
+			  {% when None %}
+			{% endmatch %}
 		</p>
 		<button>Save</button>
 	</fieldset>
