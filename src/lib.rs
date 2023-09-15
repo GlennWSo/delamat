@@ -4,10 +4,6 @@ mod templates;
 // pub use contact::{get_all_contacts, Contact};
 
 use askama::Template;
-use axum::{
-    extract::Path,
-    response::{Html, Redirect},
-};
 // bring trait in scope
 pub use db::{Contact, DB};
 
@@ -29,12 +25,17 @@ pub struct ContactsTemplate<'a> {
 #[template(path = "edit.html")]
 pub struct EditTemplate<'a> {
     pub messages: Vec<&'a str>,
+    pub email_error: Option<String>,
     pub contact: Contact,
 }
 
 impl<'a> EditTemplate<'a> {
-    pub fn new(messages: Vec<&'a str>, contact: Contact) -> Self {
-        Self { messages, contact }
+    pub fn new(messages: Vec<&'a str>, email_error: Option<String>, contact: Contact) -> Self {
+        Self {
+            messages,
+            email_error,
+            contact,
+        }
     }
 }
 

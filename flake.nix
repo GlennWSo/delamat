@@ -42,6 +42,7 @@
               rust
               pkgs.bacon
               pkgs.rust-analyzer
+              pkgs.sqlitebrowser
             ];
             PY = py.python;
 
