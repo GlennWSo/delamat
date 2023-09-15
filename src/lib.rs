@@ -22,6 +22,26 @@ pub struct ContactsTemplate<'a> {
 }
 
 #[derive(Template)]
+#[template(path = "new.html")]
+pub struct NewTemplate<'a> {
+    pub messages: Vec<&'a str>,
+    pub name: &'a str,
+    pub email: &'a str,
+    pub email_error: Option<String>,
+}
+
+impl<'a> NewTemplate<'a> {
+    pub fn new(name: &'a str, email: &'a str, email_error: Option<String>) -> Self {
+        Self {
+            name,
+            email,
+            messages: vec![],
+            email_error,
+        }
+    }
+}
+
+#[derive(Template)]
 #[template(path = "edit.html")]
 pub struct EditTemplate<'a> {
     pub messages: Vec<&'a str>,

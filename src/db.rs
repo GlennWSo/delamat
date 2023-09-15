@@ -26,6 +26,11 @@ impl DB {
         Self { pool }
     }
 
+    pub async fn search_by_name(&self, term: &str) -> Result<Vec<Contact>> {
+        sqlx::query_as!(Contact, "select * from contacts where instr(name, ?)", term)
+            .fetch_all(&self.pool)
+            .await
+    }
     pub async fn get_all_contacts(&self) -> Result<Vec<Contact>> {
         sqlx::query_as!(Contact, "select * from contacts")
             .fetch_all(&self.pool)
@@ -76,6 +81,12 @@ impl DB {
         .execute(&self.pool)
         .await
     }
+    pub async fn remove_contact(&self, id: u32) -> Result<SqliteQueryResult> {
+        sqlx::query!("delete from contacts where id = ?", id)
+            .execute(&self.pool)
+            .await
+    }
+
     pub async fn get_contact(&self, id: u32) -> Result<Contact> {
         sqlx::query_as!(
             Contact,
