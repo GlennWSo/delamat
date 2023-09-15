@@ -15,17 +15,17 @@ async fn main() {
         println!("Database already exists");
     }
     let db = SqlitePool::connect(DB_URL).await.unwrap();
-    let result = sqlx::query(
+    let _result = sqlx::query(
         "CREATE TABLE IF NOT EXISTS contacts (
             id INTEGER PRIMARY KEY NOT NULL,
             name VARCHAR(250) NOT NULL,
-            email VARCHAR(250) NOT NULL
+            email VARCHAR(250) UNIQUE NOT NULL
         );",
     )
     .execute(&db)
     .await
     .unwrap();
-    let result = sqlx::query(
+    let _result = sqlx::query(
         "INSERT INTO contacts
         (id, name, email)
         VALUES
