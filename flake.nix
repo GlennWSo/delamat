@@ -43,6 +43,8 @@
               pkgs.bacon
               pkgs.rust-analyzer
               pkgs.sqlitebrowser
+              pkgs.git-graph
+
             ];
             PY = py.python;
 
