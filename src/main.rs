@@ -85,7 +85,7 @@ async fn post_new(
         .add_contact(input.name.to_string(), input.email.to_string())
         .await
         .unwrap();
-    Ok((flash.debug("Success"), Redirect::to("/contacts")))
+    Ok((flash.debug("New Contact Saved"), Redirect::to("/contacts")))
 }
 
 async fn post_edit(
@@ -93,7 +93,7 @@ async fn post_edit(
     flash: Flash,
     Path(id): Path<u32>,
     Form(input): Form<Input>,
-) -> impl IntoResponse {
+) -> EditResult {
     let email_res = EmailAddress::from_str(&input.email);
     if let Err(e) = email_res {
         {
@@ -119,7 +119,7 @@ async fn post_edit(
         panic!("{}", e);
     };
 
-    EditResult::Ok(id, flash)
+    EditResult::Ok(id, flash.success("Changed Saved"))
 }
 
 struct NewContactError {
@@ -145,7 +145,7 @@ impl IntoResponse for EditResult {
         match self {
             EditResult::Ok(id, flash) => {
                 let re = Redirect::to(&format!("/contacts/{}", id));
-                (flash.debug("Success"), re).into_response()
+                (flash, re).into_response()
             }
             EditResult::Error { id, msg, ui } => {
                 let view: String = EditTemplate::new(
@@ -166,9 +166,7 @@ impl IntoResponse for EditResult {
 }
 
 async fn delete_contact(State(state): State<AppState>, Path(id): Path<u32>) -> Redirect {
-    println!("hello from delete hanlder");
     let res = state.db.remove_contact(id).await.unwrap();
-    dbg!(res);
     Redirect::to("/contacts")
 }
 
