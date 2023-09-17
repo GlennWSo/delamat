@@ -5,26 +5,29 @@
 use askama::Template;
 use axum::{
     body::StreamBody,
-    extract::{Form, Path, Query, State},
+    extract::{Form, FromRef, Path, Query, State},
     http::{header, StatusCode},
     response::{Html, IntoResponse, Redirect, Response},
     routing::{delete, get, post},
     Router,
 };
+use axum_flash::{self, Flash, IncomingFlashes, Key};
 use email_address::{self, EmailAddress};
 use serde::Deserialize;
 // use std::str::FromStr;
 
 use learn_htmx::{Contact, ContactsTemplate, EditTemplate, NewTemplate, ViewTemplate, DB};
 
-async fn view(State(db): State<DB>, Path(id): Path<u32>) -> Html<String> {
-    let c = db.get_contact(id).await.expect("could not get {id}");
-    let messages = ["Hi"];
+async fn view(
+    State(state): State<AppState>,
+    flashes: IncomingFlashes,
+    Path(id): Path<u32>,
+) -> (IncomingFlashes, Html<String>) {
+    let c = state.db.get_contact(id).await.expect("could not get {id}");
+    let messages: Box<_> = flashes.iter().map(|(_, txt)| txt).collect();
     let view = ViewTemplate::with_messages(&messages, c);
-    match view.render() {
-        Ok(html) => html.into(),
-        Err(e) => format!("failed to render ViewTemplate\n{:?}", e).into(),
-    }
+    let html = view.render().unwrap().into();
+    (flashes, html)
 }
 
 async fn get_new() -> Html<String> {
@@ -34,10 +37,14 @@ async fn get_new() -> Html<String> {
     view.into()
 }
 
-async fn get_edit(State(db): State<DB>, Path(id): Path<u32>) -> Html<String> {
-    let c = db.get_contact(id).await.expect("could not get {id}");
-    let messages = vec!["Hi"];
-    let edit = EditTemplate::new(messages, None, c);
+async fn get_edit(
+    State(state): State<AppState>,
+    flashes: IncomingFlashes,
+    Path(id): Path<u32>,
+) -> Html<String> {
+    let c = state.db.get_contact(id).await.expect("could not get {id}");
+    let messages: Box<_> = flashes.iter().map(|(_, txt)| txt).collect();
+    let edit = EditTemplate::new(&messages, None, c);
     match edit.render() {
         Ok(html) => html.into(),
         Err(e) => format!("failed to render ViewTemplate\n{:?}", e).into(),
@@ -52,9 +59,10 @@ struct Input {
 }
 
 async fn post_new(
-    State(db): State<DB>,
+    State(state): State<AppState>,
+    flash: Flash,
     Form(input): Form<Input>,
-) -> Result<Redirect, NewContactError> {
+) -> Result<(Flash, Redirect), NewContactError> {
     let email_res = EmailAddress::from_str(&input.email);
     match email_res {
         Ok(_) => (),
@@ -65,36 +73,38 @@ async fn post_new(
             })
         }
     };
-    let op_id = db.find_email(&input.email).await.unwrap();
+    let op_id = state.db.find_email(&input.email).await.unwrap();
     if op_id.is_some() {
         return Err(NewContactError {
             msg: "This email is already occupied".to_string(),
             ui: input,
         });
     };
-    db.add_contact(input.name.to_string(), input.email.to_string())
+    state
+        .db
+        .add_contact(input.name.to_string(), input.email.to_string())
         .await
         .unwrap();
-    Ok(Redirect::to("/contacts"))
+    Ok((flash.debug("Success"), Redirect::to("/contacts")))
 }
 
 async fn post_edit(
-    State(db): State<DB>,
+    State(state): State<AppState>,
+    flash: Flash,
     Path(id): Path<u32>,
     Form(input): Form<Input>,
 ) -> impl IntoResponse {
     let email_res = EmailAddress::from_str(&input.email);
-    match email_res {
-        Ok(_) => EditResult::Ok(id),
-        Err(e) => {
+    if let Err(e) = email_res {
+        {
             return EditResult::Error {
                 id,
                 msg: e.to_string(),
                 ui: input,
-            }
+            };
         }
     };
-    let op_id = db.find_email(&input.email).await.unwrap();
+    let op_id = state.db.find_email(&input.email).await.unwrap();
     if let Some(old_id) = op_id {
         if old_id as u32 != id {
             return EditResult::Error {
@@ -105,11 +115,11 @@ async fn post_edit(
         }
     };
 
-    if let Err(e) = db.edit_contact(id, &input.name, &input.email).await {
+    if let Err(e) = state.db.edit_contact(id, &input.name, &input.email).await {
         panic!("{}", e);
     };
 
-    EditResult::Ok(id)
+    EditResult::Ok(id, flash)
 }
 
 struct NewContactError {
@@ -127,19 +137,19 @@ impl IntoResponse for NewContactError {
 }
 
 enum EditResult {
-    Ok(u32),
+    Ok(u32, Flash),
     Error { id: u32, msg: String, ui: Input },
 }
 impl IntoResponse for EditResult {
     fn into_response(self) -> Response {
         match self {
-            EditResult::Ok(id) => {
+            EditResult::Ok(id, flash) => {
                 let re = Redirect::to(&format!("/contacts/{}", id));
-                re.into_response()
+                (flash.debug("Success"), re).into_response()
             }
             EditResult::Error { id, msg, ui } => {
                 let view: String = EditTemplate::new(
-                    vec![],
+                    &[],
                     Some(msg),
                     Contact {
                         id: id as i64,
@@ -149,16 +159,15 @@ impl IntoResponse for EditResult {
                 )
                 .render()
                 .unwrap();
-                dbg!("hi");
                 Html::from(view).into_response()
             }
         }
     }
 }
 
-async fn delete_contact(State(db): State<DB>, Path(id): Path<u32>) -> Redirect {
+async fn delete_contact(State(state): State<AppState>, Path(id): Path<u32>) -> Redirect {
     println!("hello from delete hanlder");
-    let res = db.remove_contact(id).await.unwrap();
+    let res = state.db.remove_contact(id).await.unwrap();
     dbg!(res);
     Redirect::to("/contacts")
 }
@@ -170,20 +179,28 @@ struct ContactSearch {
     name: String,
 }
 
-async fn home(State(db): State<DB>, q: Option<Query<ContactSearch>>) -> Html<String> {
+async fn home(
+    State(state): State<AppState>,
+    flashes: IncomingFlashes,
+    q: Option<Query<ContactSearch>>,
+) -> (IncomingFlashes, Html<String>) {
     println!("{:?}", q);
     let contacts = if let Some(q) = q {
-        db.search_by_name(&q.name).await.unwrap()
+        state.db.search_by_name(&q.name).await.unwrap()
     } else {
         println!("serving all contacts");
-        db.get_all_contacts().await.unwrap()
+        state.db.get_all_contacts().await.unwrap()
     };
-    let messages = ["Hi"].into();
-    let view = ContactsTemplate { messages, contacts };
-    match view.render() {
+    let messages: Box<_> = flashes.iter().map(|(_, text)| text).collect();
+    let view = ContactsTemplate {
+        messages: &messages,
+        contacts,
+    };
+    let body = match view.render() {
         Ok(html) => html.into(),
         Err(e) => format!("failed to render ViewTemplate\n{:?}", e).into(),
-    }
+    };
+    (flashes, body)
 }
 
 async fn index() -> Redirect {
@@ -192,8 +209,9 @@ async fn index() -> Redirect {
 
 use futures_util::stream;
 use std::{io, str::FromStr};
-async fn download_archive(State(db): State<DB>) -> impl IntoResponse {
-    let chunks = db
+async fn download_archive(State(state): State<AppState>) -> impl IntoResponse {
+    let chunks = state
+        .db
         .get_all_contacts()
         .await
         .unwrap()
@@ -215,9 +233,33 @@ async fn handler_404() -> impl IntoResponse {
     (StatusCode::NOT_FOUND, "nothing to see here")
 }
 
+#[derive(Clone)]
+struct AppState {
+    db: DB,
+    flash_config: axum_flash::Config,
+}
+impl FromRef<AppState> for axum_flash::Config {
+    fn from_ref(state: &AppState) -> Self {
+        state.flash_config.clone()
+    }
+}
+
+async fn set_flash(flash: Flash) -> (Flash, Redirect) {
+    (
+        // The flash must be returned so the cookie is set
+        flash.debug("Hi from flash!"),
+        Redirect::to("/"),
+    )
+}
+
 #[tokio::main]
 async fn main() {
     let db = DB::new(5).await;
+    let app_state = AppState {
+        db,
+        // The key should probably come from configuration
+        flash_config: axum_flash::Config::new(Key::generate()),
+    };
 
     // inject db connection into our routes
     // let home = {
@@ -235,8 +277,9 @@ async fn main() {
         .route("/contacts/:id/edit", post(post_edit))
         .route("/contacts/:id", delete(delete_contact))
         .route("/contacts/:id", get(view))
+        .route("/set_flash", get(set_flash))
         .fallback(handler_404)
-        .with_state(db);
+        .with_state(app_state);
 
     // build our application
     // run it with hyper on localhost:3000
