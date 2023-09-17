@@ -1,15 +1,14 @@
 {% extends "layout.html" %}
 
 {% block content %}
+<p>
+	<a href="/contacts/{{contact.id}}/edit">Edit</a>
+	<a href="/contacts">Back</a>
+</p>
 <h1>{{contact.name}}</h1>
 <div>
 	<div>Email: {{contact.email}}</div>
 </div>
 
-<p>
-	<a href="/contacts/{{contact.id}}/edit">Edit</a>
-	<a href="/contacts/{{contact.id}}/delete">Delete</a>
-	<a href="/contacts">Back</a>
-</p>
 
 {% endblock %}
