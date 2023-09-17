@@ -2,18 +2,18 @@
 
 // use std::future::Future;
 
-use serde_with::{serde_as, NoneAsEmptyString};
-use std::str::FromStr;
-
 use askama::Template;
 use axum::{
-    extract::{Form, Path, Query, RawQuery, State},
+    body::StreamBody,
+    extract::{Form, Path, Query, State},
+    http::header,
     response::{Html, IntoResponse, Redirect, Response},
     routing::{get, post},
     Router,
 };
 use email_address::{self, EmailAddress};
 use serde::Deserialize;
+// use std::str::FromStr;
 
 use learn_htmx::{Contact, ContactsTemplate, EditTemplate, NewTemplate, ViewTemplate, DB};
 
@@ -66,7 +66,7 @@ async fn post_new(
         }
     };
     let op_id = db.find_email(&input.email).await.unwrap();
-    if let Some(_) = op_id {
+    if op_id.is_some() {
         return Err(NewContactError {
             msg: "This email is already occupied".to_string(),
             ui: input,
@@ -190,6 +190,27 @@ async fn index() -> Redirect {
     Redirect::permanent("/contacts")
 }
 
+use futures_util::stream;
+use std::{io, str::FromStr};
+async fn download_archive(State(db): State<DB>) -> impl IntoResponse {
+    let chunks = db
+        .get_all_contacts()
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|c| io::Result::Ok(format!("name: '{}'\temail: '{}'\n", c.name, c.email)));
+    let stream = stream::iter(chunks);
+
+    let headers = [
+        (header::CONTENT_TYPE, "text/toml; charset=utf-8"),
+        (
+            header::CONTENT_DISPOSITION,
+            "attachment; filename=\"contacts.txt\"",
+        ),
+    ];
+    (headers, StreamBody::new(stream))
+}
+
 #[tokio::main]
 async fn main() {
     let db = DB::new(5).await;
@@ -203,6 +224,7 @@ async fn main() {
     let app = Router::new()
         .route("/", get(index))
         .route("/contacts", get(home))
+        .route("/contacts/download", get(download_archive))
         .route("/contacts/new", get(get_new))
         .route("/contacts/new", post(post_new))
         .route("/contacts/:id/edit", get(get_edit))
@@ -213,8 +235,9 @@ async fn main() {
 
     // build our application
     // run it with hyper on localhost:3000
+    let adress = "0.0.0.0:3000";
     println!("starting server");
-    axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
+    axum::Server::bind(&adress.parse().unwrap())
         .serve(app.into_make_service())
         .await
         .unwrap();
