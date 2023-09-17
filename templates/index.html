@@ -21,16 +21,23 @@
     <td>
       <a href="/contacts/{{ contact.id }}">View</a>
       <a href="/contacts/{{ contact.id }}/edit">Edit</a>
-      <a href="/contacts/{{ contact.id }}/delete">Delete</a>
+      <a hx-confirm="Are you sure?"
+      hx-delete="/contacts/{{ contact.id }}">
+        Delete</a>
     </td>
   </tr>
 {% endfor %}
 </table>
 
 <p>
-  <a href="/contacts/new">Add Contact</a>,
-  <a href="/contacts/download">Download Contacts</a>
+  <a href="/contacts/new">
+    Add New
+  </a>
 </p>
-
+<p>
+  <a href="/contacts/download" hx-boost="false">
+    Download Archive
+  </a>
+</p>
 {% endblock %}
 

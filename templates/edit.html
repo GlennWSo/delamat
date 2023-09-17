@@ -1,6 +1,10 @@
 {% extends "layout.html" %}
 
 {% block content %}
+<p>
+	<a href="/contacts/{{contact.id}}">View</a>
+	<a href="/contacts">Back</a>
+</p>
 <h1>Editing {{contact.name}} </h1>
 <form action="/contacts/{{ contact.id }}/edit" method="POST">
 	<fieldset>
@@ -23,12 +27,12 @@
 		<button>Save</button>
 	</fieldset>
 </form>
-			
+<hr>		
 
-<p>
-	<a href="/contacts/{{contact.id}}">View</a>
-	<a href="/contacts/{{contact.id}}/delete">Delete</a>
-	<a href="/contacts">Back</a>
-</p>
+<button hx-delete="/contacts/{{contact.id}}/delete" 
+				hx-confirm="Are you sure?"
+				hx-target="body">
+	Delete Contact
+</button>
 
 {% endblock %}

@@ -6,9 +6,9 @@ use askama::Template;
 use axum::{
     body::StreamBody,
     extract::{Form, Path, Query, State},
-    http::header,
+    http::{header, StatusCode},
     response::{Html, IntoResponse, Redirect, Response},
-    routing::{get, post},
+    routing::{delete, get, post},
     Router,
 };
 use email_address::{self, EmailAddress};
@@ -211,6 +211,10 @@ async fn download_archive(State(db): State<DB>) -> impl IntoResponse {
     (headers, StreamBody::new(stream))
 }
 
+async fn handler_404() -> impl IntoResponse {
+    (StatusCode::NOT_FOUND, "nothing to see here")
+}
+
 #[tokio::main]
 async fn main() {
     let db = DB::new(5).await;
@@ -229,8 +233,9 @@ async fn main() {
         .route("/contacts/new", post(post_new))
         .route("/contacts/:id/edit", get(get_edit))
         .route("/contacts/:id/edit", post(post_edit))
-        .route("/contacts/:id/delete", get(delete_contact))
+        .route("/contacts/:id/delete", delete(delete_contact))
         .route("/contacts/:id", get(view))
+        .fallback(handler_404)
         .with_state(db);
 
     // build our application
