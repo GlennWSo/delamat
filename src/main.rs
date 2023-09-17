@@ -233,7 +233,7 @@ async fn main() {
         .route("/contacts/new", post(post_new))
         .route("/contacts/:id/edit", get(get_edit))
         .route("/contacts/:id/edit", post(post_edit))
-        .route("/contacts/:id/delete", delete(delete_contact))
+        .route("/contacts/:id", delete(delete_contact))
         .route("/contacts/:id", get(view))
         .fallback(handler_404)
         .with_state(db);

@@ -29,8 +29,9 @@
 </form>
 <hr>		
 
-<button hx-delete="/contacts/{{contact.id}}/delete" 
+<button hx-delete="/contacts/{{contact.id}}" 
 				hx-confirm="Are you sure?"
+				hx-push-url="true"
 				hx-target="body">
 	Delete Contact
 </button>
