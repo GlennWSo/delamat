@@ -13,8 +13,8 @@
 			<input name="email" id="email" type="email" placeholder="email@example.org" value="{{ email }}">
 			{% match email_error %}
 			  {% when Some with (val) %}
-		      <span class="error"> 
-				    {{ val }}
+					<span class="alert alert-danger" role="alert">
+					  {{ val }}
 					</span>
 			  {% when None %}
 			{% endmatch %}
