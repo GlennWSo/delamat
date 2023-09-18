@@ -19,7 +19,7 @@
 							hx-trigger="change, keyup delay:350ms changed"
 							hx-params="*"
 							hx-target="next span"
-							hx-swap="outerHTML">
+							hx-swap="outerHTML"/>
 			{% match email_error %}
 			  {% when Some with (val) %}
 					<span class="alert alert-danger" role="alert">

@@ -249,9 +249,12 @@ async fn email_validation(
         Some(old_id) => {
             if let Some(qid) = q.id {
                 if qid != old_id as u32 {
-                    Html("Occupied".to_string())
+                    Html(format!(
+                        "<span class='alert alert-danger' role='alert'>{}</span>",
+                        "Occupied"
+                    ))
                 } else {
-                    Html("<span>✅</span>".to_string())
+                    Html("<span></span>".to_string())
                 }
             } else {
                 Html(format!(
