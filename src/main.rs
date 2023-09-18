@@ -231,6 +231,41 @@ async fn handler_404() -> impl IntoResponse {
     (StatusCode::NOT_FOUND, "nothing to see here")
 }
 
+#[derive(Deserialize)]
+struct EmailQuery {
+    email: String,
+    id: Option<u32>,
+}
+async fn email_validation(
+    State(state): State<AppState>,
+    Query(q): Query<EmailQuery>,
+) -> Html<String> {
+    let email_res = EmailAddress::from_str(&q.email);
+    if let Err(e) = email_res {
+        return Html(format!(
+            "<span class='alert alert-danger' role='alert'>{}</span>",
+            e
+        ));
+    }
+    match state.db.find_email(&q.email).await.unwrap() {
+        Some(old_id) => {
+            if let Some(qid) = q.id {
+                if qid != old_id as u32 {
+                    Html("Occupied".to_string())
+                } else {
+                    Html("<span>✅</span>".to_string())
+                }
+            } else {
+                Html(format!(
+                    "<span class='alert alert-danger' role='alert'>{}</span>",
+                    "Occupied"
+                ))
+            }
+        }
+        None => Html("<span>✅</span>".to_string()),
+    }
+}
+
 #[derive(Clone)]
 struct AppState {
     db: DB,
@@ -242,14 +277,6 @@ impl FromRef<AppState> for axum_flash::Config {
     }
 }
 
-async fn set_flash(flash: Flash) -> (Flash, Redirect) {
-    (
-        // The flash must be returned so the cookie is set
-        flash.debug("Hi from flash!"),
-        Redirect::to("/"),
-    )
-}
-
 #[tokio::main]
 async fn main() {
     let db = DB::new(5).await;
@@ -259,12 +286,6 @@ async fn main() {
         flash_config: axum_flash::Config::new(Key::generate()),
     };
 
-    // inject db connection into our routes
-    // let home = {
-    //     let db = db.clone();
-    //     async move || home(db).await
-    // };
-
     let app = Router::new()
         .route("/", get(index))
         .route("/contacts", get(home))
@@ -273,9 +294,9 @@ async fn main() {
         .route("/contacts/new", post(post_new))
         .route("/contacts/:id/edit", get(get_edit))
         .route("/contacts/:id/edit", post(post_edit))
+        .route("/contacts/email", get(email_validation))
         .route("/contacts/:id", delete(delete_contact))
         .route("/contacts/:id", get(view))
-        .route("/set_flash", get(set_flash))
         .fallback(handler_404)
         .with_state(app_state);
 

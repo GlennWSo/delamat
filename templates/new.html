@@ -10,13 +10,23 @@
 		</p>
 		<p>
 			<label for="email">Email</label>
-			<input name="email" id="email" type="email" placeholder="email@example.org" value="{{ email }}">
+			<input name="email" 
+							id="email" 
+							type="email"
+							placeholder="email@example.org"
+							value=""
+							hx-get="/contacts/email"
+							hx-trigger="change, keyup delay:350ms changed"
+							hx-params="*"
+							hx-target="next span"
+							hx-swap="outerHTML">
 			{% match email_error %}
 			  {% when Some with (val) %}
 					<span class="alert alert-danger" role="alert">
 					  {{ val }}
 					</span>
 			  {% when None %}
+					<span/>
 			{% endmatch %}
 		</p>
 		<button>Save</button>
