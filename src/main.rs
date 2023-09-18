@@ -31,9 +31,7 @@ async fn view(
 }
 
 async fn get_new() -> Html<String> {
-    let view = NewTemplate::new("Full Name", "name@example.org", None)
-        .render()
-        .unwrap();
+    let view = NewTemplate::new("", "", None).render().unwrap();
     view.into()
 }
 
