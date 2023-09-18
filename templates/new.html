@@ -6,15 +6,15 @@
 		<legend>Contect Values</legend>
 		<p>
 			<label for="name">Name</label>
-			<input name="name" id="name" placeholder="name@example.org" value="{{ name }}">
+			<input name="name" id="name" placeholder="Name Surname" value="{{ name }}">
 		</p>
 		<p>
 			<label for="email">Email</label>
 			<input name="email" 
 							id="email" 
 							type="email"
-							placeholder="email@example.org"
-							value=""
+							placeholder="name@example.org"
+							value="{{ email }}"
 							hx-get="/contacts/email"
 							hx-trigger="change, keyup delay:350ms changed"
 							hx-params="*"
