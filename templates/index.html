@@ -32,15 +32,26 @@
 {% endfor %}
 </table>
 
-<p>
-  <a href="/contacts/new">
+
+<div>
+    <span style="float: right"> 
+        {% if page > 1 %}
+          <a href="/contacts?page={{ page - 1 }}">Previous</a>
+        {% endif %}
+        {{ page }}
+        {% if more_pages %}
+          <a href="/contacts?page={{ page + 1 }}">Next</a>
+        {% endif %}
+    </span>
+</div>
+
+
+
+<a href="/contacts/new">
     Add New
-  </a>
-</p>
-<p>
-  <a href="/contacts/download" hx-boost="false">
+</a>
+<a href="/contacts/download" hx-boost="false">
     Download Archive
-  </a>
-</p>
+</a>
 {% endblock %}
 

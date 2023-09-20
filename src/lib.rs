@@ -19,8 +19,10 @@ struct BaseTemplate<'a> {
 #[derive(Template)]
 #[template(path = "index.html")]
 pub struct ContactsTemplate<'a> {
+    pub page: u32,
     pub messages: Messages<'a>,
-    pub contacts: Vec<Contact>,
+    pub contacts: &'a [Contact],
+    pub more_pages: bool,
 }
 
 #[derive(Template)]

@@ -175,10 +175,16 @@ struct ContactSearch {
     name: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct Page {
+    page: u32,
+}
+
 async fn home(
     State(state): State<AppState>,
     flashes: IncomingFlashes,
     q: Option<Query<ContactSearch>>,
+    p: Option<Query<Page>>,
 ) -> (IncomingFlashes, Html<String>) {
     println!("{:?}", q);
     let contacts = if let Some(q) = q {
@@ -187,10 +193,19 @@ async fn home(
         println!("serving all contacts");
         state.db.get_all_contacts().await.unwrap()
     };
+
+    let p = p.map_or(1, |p| p.0.page) as usize;
+    let page_size = 10;
+    let skiped = (p - 1) * page_size;
+    let has_more = contacts.len() > p * page_size;
+    let contacts: Box<[Contact]> = contacts.into_iter().skip(skiped).take(10).collect();
+
     let messages: Box<_> = flashes.iter().map(|(_, text)| text).collect();
     let view = ContactsTemplate {
+        page: p as u32,
         messages: &messages,
-        contacts,
+        contacts: &contacts,
+        more_pages: has_more,
     };
     let body = match view.render() {
         Ok(html) => html.into(),
