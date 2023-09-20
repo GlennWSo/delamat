@@ -16,18 +16,40 @@ use email_address::{self, EmailAddress};
 use serde::Deserialize;
 // use std::str::FromStr;
 
-use learn_htmx::{Contact, ContactsTemplate, EditTemplate, NewTemplate, ViewTemplate, DB};
+use learn_htmx::db::{self, Contact, DB};
+use learn_htmx::templates::{ContactsTemplate, EditTemplate, NewTemplate, ViewTemplate};
 
 async fn view(
     State(state): State<AppState>,
     flashes: IncomingFlashes,
     Path(id): Path<u32>,
-) -> (IncomingFlashes, Html<String>) {
-    let c = state.db.get_contact(id).await.expect("could not get {id}");
+) -> impl IntoResponse
+// where
+    // T: IntoResponse,
+{
+    let c = match state.db.get_contact(id).await {
+        Ok(c) => c,
+        Err(e) => match e {
+            sqlx::Error::RowNotFound => {
+                return Err((
+                    (StatusCode::NOT_FOUND),
+                    format!("Error: contact {} was not found", id),
+                ))
+            }
+            e => {
+                dbg!(&e, e.to_string());
+                return Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "The server failed".to_string(),
+                ));
+            }
+        },
+    };
     let messages: Box<_> = flashes.iter().map(|(_, txt)| txt).collect();
     let view = ViewTemplate::with_messages(&messages, c);
-    let html = view.render().unwrap().into();
-    (flashes, html)
+    let html = Html(view.render().unwrap());
+
+    Result::Ok((flashes, html))
 }
 
 async fn get_new() -> Html<String> {
@@ -164,7 +186,7 @@ impl IntoResponse for EditResult {
 }
 
 async fn delete_contact(State(state): State<AppState>, Path(id): Path<u32>) -> Redirect {
-    let res = state.db.remove_contact(id).await.unwrap();
+    state.db.remove_contact(id).await.unwrap();
     Redirect::to("/contacts")
 }
 

@@ -1,11 +1,16 @@
+use futures_core::stream::Stream;
+use futures_util::stream::BoxStream;
 use std::env;
 
 // use askama::Result;
+pub use sqlx::Result;
 use sqlx::{
     self,
     sqlite::{SqlitePoolOptions, SqliteQueryResult},
-    FromRow, Result, SqlitePool,
+    FromRow, SqlitePool,
 };
+
+// struct DBError(sqlx::Error)
 
 const DB_URL: &str = env!("DATABASE_URL");
 

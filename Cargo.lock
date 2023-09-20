@@ -912,6 +912,7 @@ dependencies = [
  "axum",
  "axum-flash",
  "email_address",
+ "futures-core",
  "futures-util",
  "headers",
  "serde",
