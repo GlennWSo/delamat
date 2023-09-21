@@ -149,18 +149,76 @@ pub fn contact_details(flashes: &IncomingFlashes, contact: Contact) -> Markup {
     };
     layout(&flashes, content)
 }
+pub fn contact_list(
+    flashes: &IncomingFlashes,
+    contacts: &[Contact],
+    page: u32,
+    more_pages: bool,
+) -> Markup {
+    let search_form = html! {
+            form #tool-bar action="/contacts" method="get" {
+                label for="search" {
+                    "Search Term"
+                }
+                input.search type="search" name="name" value="";
+                input type="submit" value="Search";
+            }
 
-#[derive(Template)]
-#[template(path = "view.html")]
-pub struct ViewTemplate<'a> {
-    messages: Vec<&'a str>,
-    contact: Contact,
-}
-impl<'a> ViewTemplate<'a> {
-    pub fn with_messages(msgs: &[&'a str], contact: Contact) -> Self {
-        Self {
-            messages: msgs.into(),
-            contact,
+    };
+
+    let table = html! {
+        table {
+            thead {
+                th {"Name"}
+                th {"Email"}
+                th {"Links"}
+            }
+        @for c in contacts{
+            tr {
+                    td{(c.name)}
+                    td{(c.email)}
+                    td{
+                      a href={"/contacts/"(c.id)} {"View"}
+                      a href={"/contacts/"(c.id)"/edit"} {"Edit"}
+                      a href=""
+                        hx-confirm="Are you sure?"
+                        hx-delete={"/contacts/"(c.id)}
+                        hx-target="body"{
+                        "Delete"
+                      }
+                    }
+                }
+
+            }
         }
-    }
+    };
+
+    let pager = html! {
+        span style="float: right"{
+            div #pager {
+                @if true {
+                    a href={"/contacts?page="((page - 1))} {"Previous"}
+                }
+                " ("(page)") "
+                @if more_pages {
+                    a href={"/contacts?page="((page+1))} {"Next"}
+                }
+            }
+        }
+    };
+    let content = html! {
+        div #main {
+            (search_form)
+            (table)
+            (pager)
+            div {
+                a href="/contacts/new" {"Create New"}
+                ", "
+                a href="/contacts/download" hx-boost="false" {
+                    "Download Contacts"
+                }
+            }
+        }
+    };
+    layout(&flashes, content)
 }

@@ -16,7 +16,7 @@ use email_address::{self, EmailAddress};
 use serde::Deserialize;
 
 use learn_htmx::templates::{
-    hello_world, ContactsTemplate, EditTemplate, NewTemplate, ViewTemplate,
+    contact_list, hello_world, ContactsTemplate, EditTemplate, NewTemplate,
 };
 use learn_htmx::{
     db::{Contact, DB},
@@ -217,7 +217,7 @@ async fn home(
     flashes: IncomingFlashes,
     q: Option<Query<ContactSearch>>,
     p: Option<Query<Page>>,
-) -> (IncomingFlashes, Html<String>) {
+) -> (IncomingFlashes, Markup) {
     println!("{:?}", q);
     let contacts = if let Some(q) = q {
         state.db.search_by_name(&q.name).await.unwrap()
@@ -233,16 +233,17 @@ async fn home(
     let contacts: Box<[Contact]> = contacts.into_iter().skip(skiped).take(10).collect();
 
     let messages: Box<_> = flashes.iter().map(|(_, text)| text).collect();
-    let view = ContactsTemplate {
-        page: p as u32,
-        messages: &messages,
-        contacts: &contacts,
-        more_pages: has_more,
-    };
-    let body = match view.render() {
-        Ok(html) => html.into(),
-        Err(e) => format!("failed to render ViewTemplate\n{:?}", e).into(),
-    };
+    // let view = ContactsTemplate {
+    //     page: p as u32,
+    //     messages: &messages,
+    //     contacts: &contacts,
+    //     more_pages: has_more,
+    // };
+    // let body = match view.render() {
+    //     Ok(html) => html.into(),
+    //     Err(e) => format!("failed to render ViewTemplate\n{:?}", e).into(),
+    // };
+    let body = contact_list(&flashes, &contacts, p as u32, has_more);
     (flashes, body)
 }
 
