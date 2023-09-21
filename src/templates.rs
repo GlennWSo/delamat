@@ -1,7 +1,7 @@
 use crate::db::Contact;
 use askama::Template;
 use axum_flash::IncomingFlashes;
-use maud::{html, Markup, PreEscaped, DOCTYPE};
+use maud::{html, Markup, DOCTYPE};
 
 type Messages<'a> = &'a [&'a str];
 
@@ -16,15 +16,6 @@ pub fn hello_world(name: Option<Box<str>>) -> Markup {
 struct BaseTemplate<'a> {
     // field name should match the variable name
     messages: Messages<'a>,
-}
-
-#[derive(Template)]
-#[template(path = "index.html")]
-pub struct ContactsTemplate<'a> {
-    pub page: u32,
-    pub messages: Messages<'a>,
-    pub contacts: &'a [Contact],
-    pub more_pages: bool,
 }
 
 #[derive(Template)]
@@ -147,7 +138,7 @@ pub fn contact_details(flashes: &IncomingFlashes, contact: Contact) -> Markup {
             }
         }
     };
-    layout(&flashes, content)
+    layout(flashes, content)
 }
 pub fn contact_list(
     flashes: &IncomingFlashes,
@@ -220,5 +211,5 @@ pub fn contact_list(
             }
         }
     };
-    layout(&flashes, content)
+    layout(flashes, content)
 }
