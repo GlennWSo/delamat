@@ -5,12 +5,6 @@ use maud::{html, Markup, DOCTYPE};
 
 type Messages<'a> = &'a [&'a str];
 
-pub fn hello_world(name: Option<Box<str>>) -> Markup {
-    html! {
-        h2 {"Hello, " (name.unwrap_or("World!".into()))}
-    }
-}
-
 #[derive(Template)]
 #[template(path = "layout.html")]
 struct BaseTemplate<'a> {

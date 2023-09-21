@@ -15,18 +15,13 @@ use axum_flash::{self, Flash, IncomingFlashes, Key};
 use email_address::{self, EmailAddress};
 use serde::Deserialize;
 
-use learn_htmx::templates::{contact_list, hello_world, EditTemplate, NewTemplate};
+use learn_htmx::templates::{contact_list, EditTemplate, NewTemplate};
 use learn_htmx::{
     db::{Contact, DB},
     templates::contact_details,
 };
 
 use maud::Markup;
-
-async fn hello(name: Option<Path<Box<str>>>) -> Markup {
-    let name = name.map(|v| v.0);
-    hello_world(name)
-}
 
 async fn view(
     State(state): State<AppState>,
@@ -333,7 +328,6 @@ async fn main() {
         .route("/contacts/email", get(email_validation))
         .route("/contacts/:id", delete(delete_contact))
         .route("/contacts/:id", get(view))
-        .route("/hello/:name", get(hello))
         .fallback(handler_404)
         .with_state(app_state);
 
