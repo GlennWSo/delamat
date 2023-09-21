@@ -14,10 +14,21 @@ use axum::{
 use axum_flash::{self, Flash, IncomingFlashes, Key};
 use email_address::{self, EmailAddress};
 use serde::Deserialize;
-// use std::str::FromStr;
 
-use learn_htmx::db::{self, Contact, DB};
-use learn_htmx::templates::{ContactsTemplate, EditTemplate, NewTemplate, ViewTemplate};
+use learn_htmx::templates::{
+    hello_world, ContactsTemplate, EditTemplate, NewTemplate, ViewTemplate,
+};
+use learn_htmx::{
+    db::{Contact, DB},
+    templates::contact_details,
+};
+
+use maud::Markup;
+
+async fn hello(name: Option<Path<Box<str>>>) -> Markup {
+    let name = name.map(|v| v.0);
+    hello_world(name)
+}
 
 async fn view(
     State(state): State<AppState>,
@@ -45,9 +56,8 @@ async fn view(
             }
         },
     };
-    let messages: Box<_> = flashes.iter().map(|(_, txt)| txt).collect();
-    let view = ViewTemplate::with_messages(&messages, c);
-    let html = Html(view.render().unwrap());
+    // let messages: Box<_> = flashes.iter().map(|(_, txt)| txt).collect();
+    let html = contact_details(&flashes, c);
 
     Result::Ok((flashes, html))
 }
@@ -335,6 +345,7 @@ async fn main() {
         .route("/contacts/email", get(email_validation))
         .route("/contacts/:id", delete(delete_contact))
         .route("/contacts/:id", get(view))
+        .route("/hello/:name", get(hello))
         .fallback(handler_404)
         .with_state(app_state);
 
