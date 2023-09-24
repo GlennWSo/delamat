@@ -15,7 +15,7 @@ use axum_flash::{self, Flash, IncomingFlashes, Key};
 use email_address::{self, EmailAddress};
 use serde::Deserialize;
 
-use learn_htmx::templates::{contact_list, EditTemplate, NewTemplate};
+use learn_htmx::templates::{contact_list, edit_contact, EditTemplate, NewTemplate};
 use learn_htmx::{
     db::{Contact, DB},
     templates::contact_details,
@@ -50,7 +50,7 @@ async fn view(
         },
     };
     // let messages: Box<_> = flashes.iter().map(|(_, txt)| txt).collect();
-    let html = contact_details(&flashes, c);
+    let html = contact_details(&flashes, &c);
 
     Result::Ok((flashes, html))
 }
@@ -64,14 +64,9 @@ async fn get_edit(
     State(state): State<AppState>,
     flashes: IncomingFlashes,
     Path(id): Path<u32>,
-) -> Html<String> {
+) -> Markup {
     let c = state.db.get_contact(id).await.expect("could not get {id}");
-    let messages: Box<_> = flashes.iter().map(|(_, txt)| txt).collect();
-    let edit = EditTemplate::new(&messages, None, c);
-    match edit.render() {
-        Ok(html) => html.into(),
-        Err(e) => format!("failed to render ViewTemplate\n{:?}", e).into(),
-    }
+    edit_contact(&flashes, &c, None)
 }
 
 #[derive(Deserialize, Debug)]
@@ -222,7 +217,7 @@ async fn home(
     let p = p.map_or(1, |p| p.0.page) as usize;
     let page_size = 10;
     let skiped = (p - 1) * page_size;
-    let has_more = contacts.len() > p * page_size;
+    let has_more = contacts.len() > dbg!(p * page_size);
     let contacts: Box<[Contact]> = contacts.into_iter().skip(skiped).take(10).collect();
 
     let body = contact_list(&flashes, &contacts, p as u32, has_more);
