@@ -57,7 +57,8 @@ pub fn edit_contact(
     contact: &Contact,
     email_error: Option<&str>,
 ) -> Markup {
-    html! {
+    let content = html! {
+        div #main {
         p {
             a href={"contacts/"(contact.id)} { "View" }
             a href="/contacts" {" back"}
@@ -68,16 +69,18 @@ pub fn edit_contact(
                 legend {"Contact values"}
                 p {
                     label for="name" { "Name" }
-                    input #name name="name" type="text" placeholder="name";
+                    input #name name="name" type="text" placeholder="name" value=(contact.name);
                 }
                 p {
                     label for="email" { "Email"}
                     input #email
+                        name="email"
+                        type="email"
                         placeholder="name@example.org"
                         value=(contact.email)
                         hx-get="/contacts/email"
                         hx-params="*"
-                        hx-vals={"{id: "(contact.id)"}"}
+                        hx-vals=(format!("'id': '{}'", contact.id))
                         hx-trigger="change, leyup delay:350ms changed"
                         hx-target="next span"
                         hx-swap="outerHTML";
@@ -101,7 +104,9 @@ pub fn edit_contact(
                     "Delete Contact"
             }
         }
-    }
+    }};
+
+    layout(flashes, content)
 }
 
 pub fn contact_details(flashes: &IncomingFlashes, contact: &Contact) -> Markup {
