@@ -13,14 +13,8 @@ pub fn layout(content: Markup, flashes: &IncomingFlashes) -> Markup {
                 (flashy_flash(flashes))
                 hr;
                 (content)
-                script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"
-                    integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN"
-                    crossorigin="anonymous"{}
-                script src="https://cdn.jsdelivr.net/npm/popper.js@1.12.9/dist/umd/popper.min.js"
-                    integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q"
-                    crossorigin="anonymous"{}
-                script src="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/js/bootstrap.min.js"
-                    integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl"
+                script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+                    integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL"
                     crossorigin="anonymous"{}
 
             }
@@ -33,8 +27,8 @@ fn head(title: &str) -> Markup {
         meta charset="UTF-8";
             title {(title)}
             link rel="stylesheet"
-                href="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/css/bootstrap.min.css"
-                integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm"
+                href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+                integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN"
                 crossorigin="anonymous";
             script
                 src="https://unpkg.com/htmx.org@1.9.5"
@@ -58,12 +52,10 @@ fn flashy_flash(flashes: &IncomingFlashes) -> Markup {
                 axum_flash::Level::Warning => {},
                 axum_flash::Level::Error => {},
                 axum_flash::Level::Success => {
-                    div.alert.alert-success.alert-dismissible.fade.show {
+                    div.alert.alert-success.alert-dismissible.fade.show role="alert"{
                         (msg)
-                        button #close type="button" data-dismiss="alert" aria-label="Close" {
-                            span aria-hidden="true" {
-                            "&times;"
-                            }
+                        button.btn-close type="button" data-bs-dismiss="alert" aria-label="Close" {
+                            // span aria-hidden="true" {r#"&times;"#}
                         }
                     }
                 },
