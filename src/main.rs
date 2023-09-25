@@ -15,7 +15,7 @@ use axum_flash::{self, Flash, IncomingFlashes, Key};
 use email_address::{self, EmailAddress};
 use serde::Deserialize;
 
-use learn_htmx::templates::{contact_list, edit_contact, EditTemplate, NewTemplate};
+use learn_htmx::templates::{contact_list, edit_contact, NewTemplate};
 use learn_htmx::{
     db::{Contact, DB},
     templates::contact_details,
@@ -66,7 +66,7 @@ async fn get_edit(
     Path(id): Path<u32>,
 ) -> Markup {
     let c = state.db.get_contact(id).await.expect("could not get {id}");
-    edit_contact(&flashes, &c, None)
+    edit_contact(&c, &flashes, None)
 }
 
 #[derive(Deserialize, Debug)]
@@ -109,6 +109,7 @@ async fn post_new(
 async fn post_edit(
     State(state): State<AppState>,
     flash: Flash,
+    flashes: IncomingFlashes,
     Path(id): Path<u32>,
     Form(input): Form<Input>,
 ) -> EditResult {
@@ -117,8 +118,9 @@ async fn post_edit(
         {
             return EditResult::Error {
                 id,
-                msg: e.to_string(),
+                msg: e.to_string().into(),
                 ui: input,
+                flashes,
             };
         }
     };
@@ -127,8 +129,9 @@ async fn post_edit(
         if old_id as u32 != id {
             return EditResult::Error {
                 id,
-                msg: "This email is already occupied".to_string(),
+                msg: "This email is already occupied".into(),
                 ui: input,
+                flashes,
             };
         }
     };
@@ -156,7 +159,12 @@ impl IntoResponse for NewContactError {
 
 enum EditResult {
     Ok(u32, Flash),
-    Error { id: u32, msg: String, ui: Input },
+    Error {
+        id: u32,
+        msg: Box<str>,
+        ui: Input,
+        flashes: IncomingFlashes,
+    },
 }
 impl IntoResponse for EditResult {
     fn into_response(self) -> Response {
@@ -165,18 +173,18 @@ impl IntoResponse for EditResult {
                 let re = Redirect::to(&format!("/contacts/{}", id));
                 (flash, re).into_response()
             }
-            EditResult::Error { id, msg, ui } => {
-                let view: String = EditTemplate::new(
-                    &[],
-                    Some(msg),
-                    Contact {
-                        id: id as i64,
-                        name: ui.name,
-                        email: ui.email,
-                    },
-                )
-                .render()
-                .unwrap();
+            EditResult::Error {
+                id,
+                msg,
+                ui,
+                flashes,
+            } => {
+                let c = Contact {
+                    id: id as i64,
+                    name: ui.name,
+                    email: ui.email,
+                };
+                let view: String = edit_contact(&c, &flashes, Some(&msg)).into_string();
                 Html::from(view).into_response()
             }
         }

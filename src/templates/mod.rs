@@ -35,26 +35,9 @@ impl<'a> NewTemplate<'a> {
     }
 }
 
-#[derive(Template)]
-#[template(path = "edit.html")]
-pub struct EditTemplate<'a> {
-    pub messages: &'a [&'a str],
-    pub email_error: Option<String>,
-    pub contact: Contact,
-}
-
-impl<'a> EditTemplate<'a> {
-    pub fn new(messages: &'a [&'a str], email_error: Option<String>, contact: Contact) -> Self {
-        Self {
-            messages,
-            email_error,
-            contact,
-        }
-    }
-}
 pub fn edit_contact(
-    flashes: &IncomingFlashes,
     contact: &Contact,
+    flashes: &IncomingFlashes,
     email_error: Option<&str>,
 ) -> Markup {
     let content = html! {
@@ -106,7 +89,7 @@ pub fn edit_contact(
         }
     }};
 
-    layout(flashes, content)
+    layout(content, flashes)
 }
 
 pub fn contact_details(flashes: &IncomingFlashes, contact: &Contact) -> Markup {
@@ -124,7 +107,7 @@ pub fn contact_details(flashes: &IncomingFlashes, contact: &Contact) -> Markup {
             }
         }
     };
-    layout(flashes, content)
+    layout(content, flashes)
 }
 pub fn contact_list(
     flashes: &IncomingFlashes,
@@ -197,5 +180,5 @@ pub fn contact_list(
             }
         }
     };
-    layout(flashes, content)
+    layout(content, flashes)
 }

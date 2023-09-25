@@ -2,7 +2,7 @@ use axum_flash::IncomingFlashes;
 use maud::{html, Markup, DOCTYPE};
 
 ///should wrap it self with something
-pub fn layout(flashes: &IncomingFlashes, content: Markup) -> Markup {
+pub fn layout(content: Markup, flashes: &IncomingFlashes) -> Markup {
     html! {
         (DOCTYPE)
         html lang="en" {
