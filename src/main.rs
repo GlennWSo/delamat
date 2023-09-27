@@ -1,6 +1,4 @@
-#![feature(async_closure)]
 
-// use std::future::Future;
 
 use askama::Template;
 use axum::{
