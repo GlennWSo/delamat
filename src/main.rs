@@ -274,16 +274,6 @@ struct EmailQuery {
     email: String,
     id: Option<u32>,
 }
-async fn email_validation(
-    State(state): State<AppState>,
-    Query(q): Query<EmailQuery>,
-) -> Html<String> {
-    let email_res = EmailAddress::from_str(&q.email);
-    if let Err(e) = email_res {
-        return Html(format!(
-            "<span class='alert alert-danger' role='alert'>{}</span>",
-            e
-        ));
 #[derive(Debug)]
 enum EmailError {
     FormatError(email_address::Error),
@@ -296,22 +286,7 @@ impl Display for EmailError {
             EmailError::Occupied => write!(f, "Email is occupied"),
         }
     }
-    match state.db.find_email(&q.email).await.unwrap() {
-        Some(old_id) => {
-            if let Some(qid) = q.id {
-                if qid != old_id as u32 {
-                    Html(format!(
-                        "<span class='alert alert-danger' role='alert'>{}</span>",
-                        "Occupied"
-                    ))
-                } else {
-                    Html("<span></span>".to_string())
-                }
-            } else {
-                Html(format!(
-                    "<span class='alert alert-danger' role='alert'>{}</span>",
-                    "Occupied"
-                ))
+}
 impl From<EmailError> for Markup {
     fn from(e: EmailError) -> Self {
         html! {
@@ -322,6 +297,22 @@ impl From<EmailError> for Markup {
     }
 }
 
+async fn email_validation(
+    State(state): State<AppState>,
+    Query(q): Query<EmailQuery>,
+) -> Result<NewEmail, EmailError> {
+    let email_res = EmailAddress::from_str(&q.email);
+    if let Err(e) = email_res {
+        return Err(EmailError::FormatError(e));
+    };
+    match state.db.find_email(&q.email).await.unwrap() {
+        None => Ok(NewEmail(true)),
+        Some(old_id) => match q.id {
+            Some(query_id) if query_id as i64 == old_id => Ok(NewEmail(false)),
+            _ => Err(EmailError::Occupied),
+        },
+    }
+}
 #[derive(Clone)]
 struct AppState {
     db: DB,
