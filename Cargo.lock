@@ -914,6 +914,7 @@ dependencies = [
  "email_address",
  "futures-util",
  "headers",
+ "log",
  "maud",
  "serde",
  "serde_with",

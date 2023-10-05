@@ -17,4 +17,5 @@ serde_with = "3.3.0"
 futures-util = "0.3.28"
 axum-flash = "0.7.0"
 maud = { version = "0.25.0", features = ["axum"] }
+log = "0.4.20"
 # futures-core = "0.3.28"
