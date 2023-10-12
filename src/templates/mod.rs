@@ -11,7 +11,7 @@ use self::core::MsgIterable;
 pub fn new_contact<'a>(
     name: &str,
     email: &str,
-    email_feedback: EmailFeedBack,
+    email_error: Option<&str>,
     flashes: impl MsgIterable<'a>,
 ) -> Markup {
     let content = html! {
@@ -32,11 +32,18 @@ pub fn new_contact<'a>(
                         placeholder="name@example.org"
                         value=(email)
                         hx-get="/contacts/email"
-                        hx-trigger="change, keyup delay:350 changed"
                         hx-params="*"
+                        hx-trigger="change, keyup delay:350ms changed"
                         hx-target="next span"
                         hx-swap="outerHTML";
-                        (email_feedback.into_markup())
+                    @if let Some(e) = email_error {
+                        span.alert.alert-danger role="alert" {
+                            (e)
+                        }
+                    }
+                    @else {
+                        span {}
+                    }
                 }
                 button {"Saveasdasd"}
 
@@ -81,7 +88,7 @@ pub fn edit_contact<'a>(
                         hx-get="/contacts/email"
                         hx-params="*"
                         hx-vals=(format!("'id': '{}'", contact.id))
-                        hx-trigger="change, leyup delay:350ms changed"
+                        hx-trigger="change, keyup delay:350ms changed"
                         hx-target="next span"
                         hx-swap="outerHTML";
                     @if let Some(e) = email_error {

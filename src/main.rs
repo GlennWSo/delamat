@@ -1,3 +1,4 @@
+#![deny(clippy::unwrap_used)]
 //thirds
 use axum::{
     body::StreamBody,
@@ -52,7 +53,7 @@ async fn view(
 }
 
 async fn get_new(flashes: IncomingFlashes) -> (IncomingFlashes, Markup) {
-    let content = templates::new_contact("", "", EmailFeedBack::default(), &flashes);
+    let content = templates::new_contact("", "", None, &flashes);
     (flashes, content)
 }
 
@@ -75,7 +76,6 @@ struct Input {
 async fn post_new(
     State(state): State<AppState>,
     flash: Flash,
-    flashes: IncomingFlashes,
     Form(input): Form<Input>,
 ) -> impl IntoResponse {
     // let email_res = EmailAddress::from_str(&input.email);
@@ -90,18 +90,13 @@ async fn post_new(
                 )
                     .into_response()
             }
-            _ => f.into_markup().into_response(),
+            Err(e) => templates::new_contact(&input.name, &input.email, Some(&e.to_string()), None)
+                .into_response(),
         },
         Err(e) => {
             error!("db error: {}", e);
             let msg = (Level::Error, "Internal Error".into());
-            templates::new_contact(
-                &input.name,
-                &input.email,
-                EmailFeedBack::default(),
-                Some(msg),
-            )
-            .into_response()
+            templates::new_contact(&input.name, &input.email, None, Some(msg)).into_response()
         }
     }
 }
@@ -177,9 +172,13 @@ impl IntoResponse for EditResult {
     }
 }
 
-async fn delete_contact(State(state): State<AppState>, Path(id): Path<u32>) -> Redirect {
+async fn delete_contact(
+    State(state): State<AppState>,
+    Path(id): Path<u32>,
+    flash: Flash,
+) -> (Flash, Redirect) {
     state.db.remove_contact(id).await.unwrap();
-    Redirect::to("/contacts")
+    (flash.success("Hi"), Redirect::to("/contacts"))
 }
 
 // #[serde_as]
@@ -192,6 +191,16 @@ struct ContactSearch {
 #[derive(Debug, Deserialize)]
 struct Page {
     page: u32,
+}
+
+async fn set_flash(flash: Flash) -> (Flash, Redirect) {
+    (flash.debug("Hi from flas!"), Redirect::to("/get_flash"))
+}
+async fn get_flash(flashes: IncomingFlashes) -> String {
+    flashes
+        .into_iter()
+        .map(|m| format!("lvl:{:?} msg:{}", m.0, m.1))
+        .collect()
 }
 
 async fn home(
@@ -228,6 +237,7 @@ async fn home(
     dbg!(&contacts.len());
     let has_more = contacts.len() > 10;
     contacts.truncate(10);
+    dbg!(&flashes);
     let body = templates::contact_list(&flashes, &contacts, p as u32, has_more);
     (flashes, body)
 }
@@ -302,6 +312,8 @@ async fn main() {
         .route("/contacts/email", get(email_validation))
         .route("/contacts/:id", delete(delete_contact))
         .route("/contacts/:id", get(view))
+        .route("/set_flash", get(set_flash))
+        .route("/get_flash", get(get_flash))
         .fallback(handler_404)
         .with_state(app_state);
 
@@ -309,7 +321,7 @@ async fn main() {
     // run it with hyper on localhost:3000
     let port = 3000;
     let adress = format!("0.0.0.0:{port}");
-    let url = format!("http://{}", &adress);
+    let url = format!("http://127.0.0.1:{port}");
     let link = Link::new(&url, &url);
     println!("starting server {}", link);
     axum::Server::bind(&adress.parse().unwrap())
