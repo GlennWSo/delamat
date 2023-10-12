@@ -1,8 +1,5 @@
-#![feature(async_closure)]
-
-// use std::future::Future;
-
-use askama::Template;
+#![deny(clippy::unwrap_used)]
+//thirds
 use axum::{
     body::StreamBody,
     extract::{Form, FromRef, Path, Query, State},
@@ -11,42 +8,62 @@ use axum::{
     routing::{delete, get, post},
     Router,
 };
-use axum_flash::{self, Flash, IncomingFlashes, Key};
+use axum_flash::{self, Flash, IncomingFlashes, Key, Level};
 use email_address::{self, EmailAddress};
+use futures_util::stream;
+use log::error;
+use maud::{html, Markup};
 use serde::Deserialize;
-// use std::str::FromStr;
+use terminal_link::Link;
 
-use learn_htmx::{Contact, ContactsTemplate, EditTemplate, NewTemplate, ViewTemplate, DB};
+use std::{io, str::FromStr};
+
+use learn_htmx::{
+    db::{Contact, DB},
+    email::{validate_email, EmailFeedBack, EmailQuery},
+    templates,
+};
 
 async fn view(
     State(state): State<AppState>,
     flashes: IncomingFlashes,
     Path(id): Path<u32>,
-) -> (IncomingFlashes, Html<String>) {
-    let c = state.db.get_contact(id).await.expect("could not get {id}");
-    let messages: Box<_> = flashes.iter().map(|(_, txt)| txt).collect();
-    let view = ViewTemplate::with_messages(&messages, c);
-    let html = view.render().unwrap().into();
-    (flashes, html)
+) -> impl IntoResponse {
+    let c = match state.db.get_contact(id).await {
+        Ok(c) => c,
+        Err(e) => match e {
+            sqlx::Error::RowNotFound => {
+                return Err((
+                    (StatusCode::NOT_FOUND),
+                    format!("Error: contact {} was not found", id),
+                ))
+            }
+            e => {
+                dbg!(&e, e.to_string());
+                return Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "The server failed".to_string(),
+                ));
+            }
+        },
+    };
+    let html = templates::contact_details(&flashes, &c);
+
+    Result::Ok((flashes, html))
 }
 
-async fn get_new() -> Html<String> {
-    let view = NewTemplate::new("", "", None).render().unwrap();
-    view.into()
+async fn get_new(flashes: IncomingFlashes) -> (IncomingFlashes, Markup) {
+    let content = templates::new_contact("", "", None, &flashes);
+    (flashes, content)
 }
 
 async fn get_edit(
     State(state): State<AppState>,
     flashes: IncomingFlashes,
     Path(id): Path<u32>,
-) -> Html<String> {
-    let c = state.db.get_contact(id).await.expect("could not get {id}");
-    let messages: Box<_> = flashes.iter().map(|(_, txt)| txt).collect();
-    let edit = EditTemplate::new(&messages, None, c);
-    match edit.render() {
-        Ok(html) => html.into(),
-        Err(e) => format!("failed to render ViewTemplate\n{:?}", e).into(),
-    }
+) -> Markup {
+    let c = state.db.get_contact(id).await.unwrap();
+    templates::edit_contact(&c, &flashes, None)
 }
 
 #[derive(Deserialize, Debug)]
@@ -60,35 +77,34 @@ async fn post_new(
     State(state): State<AppState>,
     flash: Flash,
     Form(input): Form<Input>,
-) -> Result<(Flash, Redirect), NewContactError> {
-    let email_res = EmailAddress::from_str(&input.email);
-    match email_res {
-        Ok(_) => (),
+) -> impl IntoResponse {
+    // let email_res = EmailAddress::from_str(&input.email);
+    let email_feedback = validate_email(&state.db, EmailQuery::new(input.email.clone())).await;
+    match email_feedback {
+        Ok(f) => match f.0 {
+            Ok(_) => {
+                state.db.add_contact(input.name, input.email).await.unwrap();
+                (
+                    flash.success("Added new contact!"),
+                    Redirect::to("/contacts"),
+                )
+                    .into_response()
+            }
+            Err(e) => templates::new_contact(&input.name, &input.email, Some(&e.to_string()), None)
+                .into_response(),
+        },
         Err(e) => {
-            return Err(NewContactError {
-                msg: e.to_string(),
-                ui: input,
-            })
+            error!("db error: {}", e);
+            let msg = (Level::Error, "Internal Error".into());
+            templates::new_contact(&input.name, &input.email, None, Some(msg)).into_response()
         }
-    };
-    let op_id = state.db.find_email(&input.email).await.unwrap();
-    if op_id.is_some() {
-        return Err(NewContactError {
-            msg: "This email is already occupied".to_string(),
-            ui: input,
-        });
-    };
-    state
-        .db
-        .add_contact(input.name.to_string(), input.email.to_string())
-        .await
-        .unwrap();
-    Ok((flash.debug("New Contact Saved"), Redirect::to("/contacts")))
+    }
 }
 
 async fn post_edit(
     State(state): State<AppState>,
     flash: Flash,
+    flashes: IncomingFlashes,
     Path(id): Path<u32>,
     Form(input): Form<Input>,
 ) -> EditResult {
@@ -97,8 +113,9 @@ async fn post_edit(
         {
             return EditResult::Error {
                 id,
-                msg: e.to_string(),
+                msg: e.to_string().into(),
                 ui: input,
+                flashes,
             };
         }
     };
@@ -107,8 +124,9 @@ async fn post_edit(
         if old_id as u32 != id {
             return EditResult::Error {
                 id,
-                msg: "This email is already occupied".to_string(),
+                msg: "This email is already occupied".into(),
                 ui: input,
+                flashes,
             };
         }
     };
@@ -120,23 +138,14 @@ async fn post_edit(
     EditResult::Ok(id, flash.success("Changed Saved"))
 }
 
-struct NewContactError {
-    msg: String,
-    ui: Input,
-}
-impl IntoResponse for NewContactError {
-    fn into_response(self) -> Response {
-        let view = NewTemplate::new(&self.ui.name, &self.ui.email, Some(self.msg))
-            .render()
-            .unwrap();
-        let html = Html::from(view);
-        html.into_response()
-    }
-}
-
 enum EditResult {
     Ok(u32, Flash),
-    Error { id: u32, msg: String, ui: Input },
+    Error {
+        id: u32,
+        msg: Box<str>,
+        ui: Input,
+        flashes: IncomingFlashes,
+    },
 }
 impl IntoResponse for EditResult {
     fn into_response(self) -> Response {
@@ -145,27 +154,31 @@ impl IntoResponse for EditResult {
                 let re = Redirect::to(&format!("/contacts/{}", id));
                 (flash, re).into_response()
             }
-            EditResult::Error { id, msg, ui } => {
-                let view: String = EditTemplate::new(
-                    &[],
-                    Some(msg),
-                    Contact {
-                        id: id as i64,
-                        name: ui.name,
-                        email: ui.email,
-                    },
-                )
-                .render()
-                .unwrap();
+            EditResult::Error {
+                id,
+                msg,
+                ui,
+                flashes,
+            } => {
+                let c = Contact {
+                    id: id as i64,
+                    name: ui.name,
+                    email: ui.email,
+                };
+                let view: String = templates::edit_contact(&c, &flashes, Some(&msg)).into_string();
                 Html::from(view).into_response()
             }
         }
     }
 }
 
-async fn delete_contact(State(state): State<AppState>, Path(id): Path<u32>) -> Redirect {
-    let res = state.db.remove_contact(id).await.unwrap();
-    Redirect::to("/contacts")
+async fn delete_contact(
+    State(state): State<AppState>,
+    Path(id): Path<u32>,
+    flash: Flash,
+) -> (Flash, Redirect) {
+    state.db.remove_contact(id).await.unwrap();
+    (flash.success("Hi"), Redirect::to("/contacts"))
 }
 
 // #[serde_as]
@@ -180,37 +193,52 @@ struct Page {
     page: u32,
 }
 
+async fn set_flash(flash: Flash) -> (Flash, Redirect) {
+    (flash.debug("Hi from flas!"), Redirect::to("/get_flash"))
+}
+async fn get_flash(flashes: IncomingFlashes) -> String {
+    flashes
+        .into_iter()
+        .map(|m| format!("lvl:{:?} msg:{}", m.0, m.1))
+        .collect()
+}
+
 async fn home(
     State(state): State<AppState>,
     flashes: IncomingFlashes,
     q: Option<Query<ContactSearch>>,
     p: Option<Query<Page>>,
-) -> (IncomingFlashes, Html<String>) {
-    println!("{:?}", q);
-    let contacts = if let Some(q) = q {
-        state.db.search_by_name(&q.name).await.unwrap()
-    } else {
-        println!("serving all contacts");
-        state.db.get_all_contacts().await.unwrap()
-    };
-
+) -> (IncomingFlashes, Markup) {
     let p = p.map_or(1, |p| p.0.page) as usize;
     let page_size = 10;
     let skiped = (p - 1) * page_size;
-    let has_more = contacts.len() > p * page_size;
-    let contacts: Box<[Contact]> = contacts.into_iter().skip(skiped).take(10).collect();
+    let skiped = skiped as i64;
 
-    let messages: Box<_> = flashes.iter().map(|(_, text)| text).collect();
-    let view = ContactsTemplate {
-        page: p as u32,
-        messages: &messages,
-        contacts: &contacts,
-        more_pages: has_more,
+    let mut contacts = if let Some(q) = q {
+        state.db.search_by_name(&q.name).await.unwrap()
+    } else {
+        println!("serving all contacts");
+        let conn = state.db.conn();
+        let sql_res = sqlx::query_as!(
+            Contact,
+            "select * from contacts
+            limit 11 offset ?",
+            skiped
+        )
+        .fetch_all(conn)
+        .await;
+        sql_res.unwrap_or_else(|e| {
+            error!("{e}");
+            vec![]
+        })
     };
-    let body = match view.render() {
-        Ok(html) => html.into(),
-        Err(e) => format!("failed to render ViewTemplate\n{:?}", e).into(),
-    };
+
+    // let has_more = contacts.len() > (p * page_size);
+    dbg!(&contacts.len());
+    let has_more = contacts.len() > 10;
+    contacts.truncate(10);
+    dbg!(&flashes);
+    let body = templates::contact_list(&flashes, &contacts, p as u32, has_more);
     (flashes, body)
 }
 
@@ -218,8 +246,6 @@ async fn index() -> Redirect {
     Redirect::permanent("/contacts")
 }
 
-use futures_util::stream;
-use std::{io, str::FromStr};
 async fn download_archive(State(state): State<AppState>) -> impl IntoResponse {
     let chunks = state
         .db
@@ -244,41 +270,14 @@ async fn handler_404() -> impl IntoResponse {
     (StatusCode::NOT_FOUND, "nothing to see here")
 }
 
-#[derive(Deserialize)]
-struct EmailQuery {
-    email: String,
-    id: Option<u32>,
-}
-async fn email_validation(
-    State(state): State<AppState>,
-    Query(q): Query<EmailQuery>,
-) -> Html<String> {
-    let email_res = EmailAddress::from_str(&q.email);
-    if let Err(e) = email_res {
-        return Html(format!(
-            "<span class='alert alert-danger' role='alert'>{}</span>",
-            e
-        ));
-    }
-    match state.db.find_email(&q.email).await.unwrap() {
-        Some(old_id) => {
-            if let Some(qid) = q.id {
-                if qid != old_id as u32 {
-                    Html(format!(
-                        "<span class='alert alert-danger' role='alert'>{}</span>",
-                        "Occupied"
-                    ))
-                } else {
-                    Html("<span></span>".to_string())
-                }
-            } else {
-                Html(format!(
-                    "<span class='alert alert-danger' role='alert'>{}</span>",
-                    "Occupied"
-                ))
-            }
+async fn email_validation(State(state): State<AppState>, Query(q): Query<EmailQuery>) -> Markup {
+    let db_res = validate_email(&state.db, q).await;
+    match db_res {
+        Ok(email_feedback) => email_feedback.into(),
+        Err(db_error) => {
+            error!("{}", db_error);
+            html! { span { "Internal Error" }}
         }
-        None => Html("<span>✅</span>".to_string()),
     }
 }
 
@@ -313,13 +312,18 @@ async fn main() {
         .route("/contacts/email", get(email_validation))
         .route("/contacts/:id", delete(delete_contact))
         .route("/contacts/:id", get(view))
+        .route("/set_flash", get(set_flash))
+        .route("/get_flash", get(get_flash))
         .fallback(handler_404)
         .with_state(app_state);
 
     // build our application
     // run it with hyper on localhost:3000
-    let adress = "0.0.0.0:3000";
-    println!("starting server");
+    let port = 3000;
+    let adress = format!("0.0.0.0:{port}");
+    let url = format!("http://127.0.0.1:{port}");
+    let link = Link::new(&url, &url);
+    println!("starting server {}", link);
     axum::Server::bind(&adress.parse().unwrap())
         .serve(app.into_make_service())
         .await
