@@ -82,11 +82,14 @@ async fn post_new(
     let email_feedback = validate_email(&state.db, EmailQuery::new(input.email.clone())).await;
     match email_feedback {
         Ok(f) => match f.0 {
-            Ok(_) => (
-                flash.success("Added new contact!"),
-                Redirect::to("/contacts"),
-            )
-                .into_response(),
+            Ok(_) => {
+                state.db.add_contact(input.name, input.email).await.unwrap();
+                (
+                    flash.success("Added new contact!"),
+                    Redirect::to("/contacts"),
+                )
+                    .into_response()
+            }
             _ => f.into_markup().into_response(),
         },
         Err(e) => {
@@ -197,20 +200,34 @@ async fn home(
     q: Option<Query<ContactSearch>>,
     p: Option<Query<Page>>,
 ) -> (IncomingFlashes, Markup) {
-    println!("{:?}", q);
-    let contacts = if let Some(q) = q {
-        state.db.search_by_name(&q.name).await.unwrap()
-    } else {
-        println!("serving all contacts");
-        state.db.get_all_contacts().await.unwrap()
-    };
-
     let p = p.map_or(1, |p| p.0.page) as usize;
     let page_size = 10;
     let skiped = (p - 1) * page_size;
-    let has_more = contacts.len() > dbg!(p * page_size);
-    let contacts: Box<[Contact]> = contacts.into_iter().skip(skiped).take(10).collect();
+    let skiped = skiped as i64;
 
+    let mut contacts = if let Some(q) = q {
+        state.db.search_by_name(&q.name).await.unwrap()
+    } else {
+        println!("serving all contacts");
+        let conn = state.db.conn();
+        let sql_res = sqlx::query_as!(
+            Contact,
+            "select * from contacts
+            limit 11 offset ?",
+            skiped
+        )
+        .fetch_all(conn)
+        .await;
+        sql_res.unwrap_or_else(|e| {
+            error!("{e}");
+            vec![]
+        })
+    };
+
+    // let has_more = contacts.len() > (p * page_size);
+    dbg!(&contacts.len());
+    let has_more = contacts.len() > 10;
+    contacts.truncate(10);
     let body = templates::contact_list(&flashes, &contacts, p as u32, has_more);
     (flashes, body)
 }

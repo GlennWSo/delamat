@@ -44,6 +44,7 @@ impl Display for NewEmail {
         }
     }
 }
+#[derive(Debug)]
 pub struct EmailFeedBack(pub Result<NewEmail, EmailError>);
 
 impl EmailFeedBack {

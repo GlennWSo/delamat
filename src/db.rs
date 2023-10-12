@@ -20,6 +20,10 @@ pub struct DBConnection {
 pub type DB = DBConnection;
 
 impl DB {
+    pub fn conn(&self) -> &SqlitePool {
+        &self.pool
+    }
+
     pub async fn new(pool_size: u32) -> Self {
         let pool = SqlitePoolOptions::new()
             .max_connections(pool_size)
@@ -109,7 +113,7 @@ impl DB {
 
 // DB is the database driver
 // `'r` is the lifetime of the `Row` being decoded
-#[derive(Clone, FromRow)]
+#[derive(Clone, FromRow, Debug)]
 pub struct Contact {
     pub id: i64,
     pub name: String,
