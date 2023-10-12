@@ -1,8 +1,16 @@
-use axum_flash::IncomingFlashes;
+use axum_flash::Level;
 use maud::{html, Markup, DOCTYPE};
 
+pub trait MsgIter<'a> = Iterator<Item = Msg<'a>>;
+pub trait MsgIterable<'a> = IntoIterator<Item = Msg<'a>>;
+
+pub type Msg<'a> = (Level, &'a str);
+
 ///should wrap it self with something
-pub fn layout(content: Markup, flashes: &IncomingFlashes) -> Markup {
+pub fn layout<'a, T>(content: Markup, msgs: T) -> Markup
+where
+    T: MsgIterable<'a>,
+{
     html! {
         (DOCTYPE)
         html lang="en" {
@@ -10,7 +18,7 @@ pub fn layout(content: Markup, flashes: &IncomingFlashes) -> Markup {
             body{
                 h1 {"Contact App"}
                 h2 {"A HTMX Demo"}
-                (flashy_flash(flashes))
+                (flashy_flash(msgs.into_iter()))
                 hr;
                 (content)
                 script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
@@ -35,17 +43,21 @@ fn head(title: &str) -> Markup {
                 integrity="sha384-xcuj3WpfgjlKF+FXhSQFQ0ZNr39ln+hwjN3npfM9VBnUskLolQAcN80McRIVOPuO"
                 crossorigin="anonymous"{}
             style {
-                "\n\tbody {padding-left: 1em}"
-                "\n\ttd {padding-right: 1em}"
+                "body {padding-left: 1em}"
+                "td {padding-right: 1em}"
+                "input {margin: 0.3em}"
+                ".inline-err {padding: 0.3em 1em}"
             }
         }
     }
 }
 
-/// content /// flash msg template
-fn flashy_flash(flashes: &IncomingFlashes) -> Markup {
+fn flashy_flash<'a, T>(msgs: T) -> Markup
+where
+    T: MsgIterable<'a>,
+{
     html! {
-        @for (lvl, msg) in flashes.iter(){
+        @for (lvl, msg) in msgs{
             @match lvl {
                 axum_flash::Level::Debug => {},
                 axum_flash::Level::Info => {},

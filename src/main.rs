@@ -1,5 +1,4 @@
-
-
+//thirds
 use axum::{
     body::StreamBody,
     extract::{Form, FromRef, Path, Query, State},
@@ -8,26 +7,27 @@ use axum::{
     routing::{delete, get, post},
     Router,
 };
-use axum_flash::{self, Flash, IncomingFlashes, Key};
+use axum_flash::{self, Flash, IncomingFlashes, Key, Level};
 use email_address::{self, EmailAddress};
+use futures_util::stream;
+use log::error;
+use maud::{html, Markup};
 use serde::Deserialize;
+use terminal_link::Link;
 
-use learn_htmx::templates;
+use std::{io, str::FromStr};
+
 use learn_htmx::{
     db::{Contact, DB},
-    templates::contact_details,
+    email::{validate_email, EmailFeedBack, EmailQuery},
+    templates,
 };
-
-use maud::{html, Markup};
 
 async fn view(
     State(state): State<AppState>,
     flashes: IncomingFlashes,
     Path(id): Path<u32>,
-) -> impl IntoResponse
-// where
-    // T: IntoResponse,
-{
+) -> impl IntoResponse {
     let c = match state.db.get_contact(id).await {
         Ok(c) => c,
         Err(e) => match e {
@@ -46,16 +46,13 @@ async fn view(
             }
         },
     };
-    // let messages: Box<_> = flashes.iter().map(|(_, txt)| txt).collect();
-    let html = contact_details(&flashes, &c);
+    let html = templates::contact_details(&flashes, &c);
 
     Result::Ok((flashes, html))
 }
 
 async fn get_new(flashes: IncomingFlashes) -> (IncomingFlashes, Markup) {
-    // let view = NewTemplate::new("", "", None).render().unwrap();
-    // view.into()
-    let content = templates::new_contact("", "", None, &flashes);
+    let content = templates::new_contact("", "", EmailFeedBack::default(), &flashes);
     (flashes, content)
 }
 
@@ -64,7 +61,7 @@ async fn get_edit(
     flashes: IncomingFlashes,
     Path(id): Path<u32>,
 ) -> Markup {
-    let c = state.db.get_contact(id).await.expect("could not get {id}");
+    let c = state.db.get_contact(id).await.unwrap();
     templates::edit_contact(&c, &flashes, None)
 }
 
@@ -77,37 +74,33 @@ struct Input {
 
 async fn post_new(
     State(state): State<AppState>,
-    flashes: IncomingFlashes,
     flash: Flash,
+    flashes: IncomingFlashes,
     Form(input): Form<Input>,
-) -> Result<(Flash, Redirect), NewContactError> {
-    let email_res = EmailAddress::from_str(&input.email);
-    match email_res {
-        Ok(_) => (),
+) -> impl IntoResponse {
+    // let email_res = EmailAddress::from_str(&input.email);
+    let email_feedback = validate_email(&state.db, EmailQuery::new(input.email.clone())).await;
+    match email_feedback {
+        Ok(f) => match f.0 {
+            Ok(_) => (
+                flash.success("Added new contact!"),
+                Redirect::to("/contacts"),
+            )
+                .into_response(),
+            _ => f.into_markup().into_response(),
+        },
         Err(e) => {
-            return Err(NewContactError {
-                msg: e.to_string().into_boxed_str(),
-                ui: input,
-                flashes,
-            })
+            error!("db error: {}", e);
+            let msg = (Level::Error, "Internal Error".into());
+            templates::new_contact(
+                &input.name,
+                &input.email,
+                EmailFeedBack::default(),
+                Some(msg),
+            )
+            .into_response()
         }
-    };
-    let op_id = state.db.find_email(&input.email).await.unwrap();
-    if op_id.is_some() {
-        return Err(NewContactError {
-            msg: "This email is already occupied"
-                .to_string()
-                .into_boxed_str(),
-            flashes,
-            ui: input,
-        });
-    };
-    state
-        .db
-        .add_contact(input.name.to_string(), input.email.to_string())
-        .await
-        .unwrap();
-    Ok((flash.debug("New Contact Saved"), Redirect::to("/contacts")))
+    }
 }
 
 async fn post_edit(
@@ -145,23 +138,6 @@ async fn post_edit(
     };
 
     EditResult::Ok(id, flash.success("Changed Saved"))
-}
-
-struct NewContactError {
-    msg: Box<str>,
-    ui: Input,
-    flashes: IncomingFlashes,
-}
-impl IntoResponse for NewContactError {
-    fn into_response(self) -> Response {
-        templates::new_contact(
-            &self.ui.name,
-            &self.ui.email,
-            Some(&self.msg),
-            &self.flashes,
-        )
-        .into_response()
-    }
 }
 
 enum EditResult {
@@ -243,8 +219,6 @@ async fn index() -> Redirect {
     Redirect::permanent("/contacts")
 }
 
-use futures_util::stream;
-use std::{fmt::Display, io, str::FromStr};
 async fn download_archive(State(state): State<AppState>) -> impl IntoResponse {
     let chunks = state
         .db
@@ -269,50 +243,17 @@ async fn handler_404() -> impl IntoResponse {
     (StatusCode::NOT_FOUND, "nothing to see here")
 }
 
-#[derive(Deserialize)]
-struct EmailQuery {
-    email: String,
-    id: Option<u32>,
-}
-#[derive(Debug)]
-enum EmailError {
-    FormatError(email_address::Error),
-    Occupied,
-}
-impl Display for EmailError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            EmailError::FormatError(e) => write!(f, "{}", e),
-            EmailError::Occupied => write!(f, "Email is occupied"),
-        }
-    }
-}
-impl From<EmailError> for Markup {
-    fn from(e: EmailError) -> Self {
-        html! {
-            span.alert.alert-danger.inline-err role="alert" {
-                (e)
-            }
+async fn email_validation(State(state): State<AppState>, Query(q): Query<EmailQuery>) -> Markup {
+    let db_res = validate_email(&state.db, q).await;
+    match db_res {
+        Ok(email_feedback) => email_feedback.into(),
+        Err(db_error) => {
+            error!("{}", db_error);
+            html! { span { "Internal Error" }}
         }
     }
 }
 
-async fn email_validation(
-    State(state): State<AppState>,
-    Query(q): Query<EmailQuery>,
-) -> Result<NewEmail, EmailError> {
-    let email_res = EmailAddress::from_str(&q.email);
-    if let Err(e) = email_res {
-        return Err(EmailError::FormatError(e));
-    };
-    match state.db.find_email(&q.email).await.unwrap() {
-        None => Ok(NewEmail(true)),
-        Some(old_id) => match q.id {
-            Some(query_id) if query_id as i64 == old_id => Ok(NewEmail(false)),
-            _ => Err(EmailError::Occupied),
-        },
-    }
-}
 #[derive(Clone)]
 struct AppState {
     db: DB,
@@ -321,15 +262,6 @@ struct AppState {
 impl FromRef<AppState> for axum_flash::Config {
     fn from_ref(state: &AppState) -> Self {
         state.flash_config.clone()
-#[derive(Debug)]
-struct NewEmail(bool);
-impl Display for NewEmail {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.0 {
-            write!(f, "✅")
-        } else {
-            Ok(())
-        }
     }
 }
 
@@ -358,16 +290,13 @@ async fn main() {
 
     // build our application
     // run it with hyper on localhost:3000
-    let adress = "0.0.0.0:3000";
-    println!("starting server");
+    let port = 3000;
+    let adress = format!("0.0.0.0:{port}");
+    let url = format!("http://{}", &adress);
+    let link = Link::new(&url, &url);
+    println!("starting server {}", link);
     axum::Server::bind(&adress.parse().unwrap())
         .serve(app.into_make_service())
         .await
         .unwrap();
-impl From<NewEmail> for Markup {
-    fn from(new: NewEmail) -> Self {
-        html! {
-            span {(new)}
-        }
-    }
 }

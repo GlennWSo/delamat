@@ -1,7 +1,7 @@
 use std::env;
 
 // use askama::Result;
-pub use sqlx::Result;
+// pub use sqlx::Result;
 use sqlx::{
     self,
     sqlite::{SqlitePoolOptions, SqliteQueryResult},
@@ -29,12 +29,12 @@ impl DB {
         Self { pool }
     }
 
-    pub async fn search_by_name(&self, term: &str) -> Result<Vec<Contact>> {
+    pub async fn search_by_name(&self, term: &str) -> sqlx::Result<Vec<Contact>> {
         sqlx::query_as!(Contact, "select * from contacts where instr(name, ?)", term)
             .fetch_all(&self.pool)
             .await
     }
-    pub async fn get_all_contacts(&self) -> Result<Vec<Contact>> {
+    pub async fn get_all_contacts(&self) -> sqlx::Result<Vec<Contact>> {
         sqlx::query_as!(Contact, "select * from contacts")
             .fetch_all(&self.pool)
             .await
@@ -45,7 +45,7 @@ impl DB {
         id: u32,
         name: &str,
         email: &str,
-    ) -> Result<SqliteQueryResult> {
+    ) -> sqlx::Result<SqliteQueryResult> {
         sqlx::query!(
             "update contacts
             set name = ?, email = ?
@@ -57,7 +57,8 @@ impl DB {
         .execute(&self.pool)
         .await
     }
-    pub async fn find_email(&self, email: &str) -> Result<Option<i64>> {
+
+    pub async fn find_email(&self, email: &str) -> sqlx::Result<Option<i64>> {
         let res = sqlx::query!(
             "select id from contacts
             where email == ?",
@@ -74,7 +75,11 @@ impl DB {
         }
     }
 
-    pub async fn add_contact(&self, name: String, email: String) -> Result<SqliteQueryResult> {
+    pub async fn add_contact(
+        &self,
+        name: String,
+        email: String,
+    ) -> sqlx::Result<SqliteQueryResult> {
         sqlx::query!(
             "insert into contacts (name, email)
             values (?, ?)",
@@ -84,13 +89,13 @@ impl DB {
         .execute(&self.pool)
         .await
     }
-    pub async fn remove_contact(&self, id: u32) -> Result<SqliteQueryResult> {
+    pub async fn remove_contact(&self, id: u32) -> sqlx::Result<SqliteQueryResult> {
         sqlx::query!("delete from contacts where id = ?", id)
             .execute(&self.pool)
             .await
     }
 
-    pub async fn get_contact(&self, id: u32) -> Result<Contact> {
+    pub async fn get_contact(&self, id: u32) -> sqlx::Result<Contact> {
         sqlx::query_as!(
             Contact,
             "select * from contacts

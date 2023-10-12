@@ -1,43 +1,60 @@
 mod core;
 use core::layout;
 
-use crate::db::Contact;
-use askama::Template;
-use axum_flash::IncomingFlashes;
+use crate::{db::Contact, email::EmailFeedBack};
+// use askama::Template;
+
 use maud::{html, Markup};
 
-type Messages<'a> = &'a [&'a str];
+use self::core::MsgIterable;
 
-#[derive(Template)]
-#[template(path = "layout.html")]
-struct BaseTemplate<'a> {
-    // field name should match the variable name
-    messages: Messages<'a>,
-}
+pub fn new_contact<'a>(
+    name: &str,
+    email: &str,
+    email_feedback: EmailFeedBack,
+    flashes: impl MsgIterable<'a>,
+) -> Markup {
+    let content = html! {
+        div #main {
+            form action="/contacts/new" method="post" {
+                legend {"Contact Values"}
+                p {
+                    label for="name" {"Name"}
+                    input #name name="name" placeholder="Name Surname" value=(name);
+                }
+                p {
+                    label for="email"{
+                        "Email"
+                    }
+                    input #email
+                        name="email"
+                        type="email"
+                        placeholder="name@example.org"
+                        value=(email)
+                        hx-get="/contacts/email"
+                        hx-trigger="change, keyup delay:350 changed"
+                        hx-params="*"
+                        hx-target="next span"
+                        hx-swap="outerHTML";
+                        (email_feedback.into_markup())
+                }
+                button {"Saveasdasd"}
 
-#[derive(Template)]
-#[template(path = "new.html")]
-pub struct NewTemplate<'a> {
-    pub messages: Messages<'a>,
-    pub name: &'a str,
-    pub email: &'a str,
-    pub email_error: Option<String>,
-}
-
-impl<'a> NewTemplate<'a> {
-    pub fn new(name: &'a str, email: &'a str, email_error: Option<String>) -> Self {
-        Self {
-            name,
-            email,
-            messages: &[],
-            email_error,
+            }
         }
-    }
+        p {
+            a href="/contacts"{
+                "Back"
+            }
+        }
+    };
+
+    layout(dbg!(content), flashes)
 }
 
-pub fn edit_contact(
+pub fn edit_contact<'a>(
     contact: &Contact,
-    flashes: &IncomingFlashes,
+    flashes: impl MsgIterable<'a>,
     email_error: Option<&str>,
 ) -> Markup {
     let content = html! {
@@ -92,7 +109,7 @@ pub fn edit_contact(
     layout(content, flashes)
 }
 
-pub fn contact_details(flashes: &IncomingFlashes, contact: &Contact) -> Markup {
+pub fn contact_details<'a>(flashes: impl MsgIterable<'a>, contact: &Contact) -> Markup {
     let content = html! {
         div #main{
             p {
@@ -109,8 +126,8 @@ pub fn contact_details(flashes: &IncomingFlashes, contact: &Contact) -> Markup {
     };
     layout(content, flashes)
 }
-pub fn contact_list(
-    flashes: &IncomingFlashes,
+pub fn contact_list<'a>(
+    flashes: impl MsgIterable<'a>,
     contacts: &[Contact],
     page: u32,
     more_pages: bool,
