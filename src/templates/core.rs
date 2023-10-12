@@ -7,10 +7,7 @@ pub trait MsgIterable<'a> = IntoIterator<Item = Msg<'a>>;
 pub type Msg<'a> = (Level, &'a str);
 
 ///should wrap it self with something
-pub fn layout<'a, T>(content: Markup, msgs: T) -> Markup
-where
-    T: MsgIterable<'a>,
-{
+pub fn layout<'a>(content: Markup, msgs: impl MsgIterable<'a>) -> Markup {
     html! {
         (DOCTYPE)
         html lang="en" {
@@ -52,10 +49,7 @@ fn head(title: &str) -> Markup {
     }
 }
 
-fn flashy_flash<'a, T>(msgs: T) -> Markup
-where
-    T: MsgIterable<'a>,
-{
+fn flashy_flash<'a>(msgs: impl MsgIterable<'a>) -> Markup {
     html! {
         @for (lvl, msg) in msgs{
             @match lvl {
