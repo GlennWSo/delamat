@@ -33,9 +33,9 @@ impl Display for EmailError {
 }
 
 #[derive(Debug)]
-pub struct NewEmail(bool);
+pub struct IsNewEmail(bool);
 
-impl Display for NewEmail {
+impl Display for IsNewEmail {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.0 {
             write!(f, "✅")
@@ -45,11 +45,11 @@ impl Display for NewEmail {
     }
 }
 #[derive(Debug)]
-pub struct EmailFeedBack(pub Result<NewEmail, EmailError>);
+pub struct EmailFeedBack(pub Result<IsNewEmail, EmailError>);
 
 impl EmailFeedBack {
     fn ok(new: bool) -> Self {
-        Self(Ok(NewEmail(new)))
+        Self(Ok(IsNewEmail(new)))
     }
     fn err(e: EmailError) -> Self {
         Self(Err(e))
@@ -60,7 +60,7 @@ impl EmailFeedBack {
 }
 impl Default for EmailFeedBack {
     fn default() -> Self {
-        Self(Ok(NewEmail(false)))
+        Self(Ok(IsNewEmail(false)))
     }
 }
 

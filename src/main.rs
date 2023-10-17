@@ -78,26 +78,27 @@ async fn post_new(
     flash: Flash,
     Form(input): Form<Input>,
 ) -> impl IntoResponse {
-    // let email_res = EmailAddress::from_str(&input.email);
-    let email_feedback = validate_email(&state.db, EmailQuery::new(input.email.clone())).await;
-    match email_feedback {
-        Ok(f) => match f.0 {
-            Ok(_) => {
-                state.db.add_contact(input.name, input.email).await.unwrap();
-                (
-                    flash.success("Added new contact!"),
-                    Redirect::to("/contacts"),
-                )
-                    .into_response()
-            }
-            Err(e) => templates::new_contact(&input.name, &input.email, Some(&e.to_string()), None)
-                .into_response(),
-        },
+    let feedback = match validate_email(&state.db, EmailQuery::new(input.email.clone())).await {
+        Ok(feedback) => feedback,
         Err(e) => {
             error!("db error: {}", e);
             let msg = (Level::Error, "Internal Error".into());
-            templates::new_contact(&input.name, &input.email, None, Some(msg)).into_response()
+            return templates::new_contact(&input.name, &input.email, None, Some(msg))
+                .into_response();
         }
+    };
+
+    match feedback.0 {
+        Ok(_v) => {
+            state.db.add_contact(input.name, input.email).await.unwrap();
+            (
+                flash.success("Added new contact!"),
+                Redirect::to("/contacts"),
+            )
+                .into_response()
+        }
+        Err(e) => templates::new_contact(&input.name, &input.email, Some(&e.to_string()), None)
+            .into_response(),
     }
 }
 
