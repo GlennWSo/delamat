@@ -52,7 +52,8 @@
                 initialDatabases = [
                   { 
                     name = "contacts";
-                    schema = ./contact-schema.sql;}
+                    schema = ./contact-schema.sql;
+                  }
                 ];
                 ensureUsers = [
                   { 
