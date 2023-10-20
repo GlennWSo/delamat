@@ -45,7 +45,23 @@
                 OPENSSL_LIB_DIR = "${openssl.out}/lib";
                 DATABASE_URL = "sqlite://sqlite.db";
               };
-              processes.serve.exec = "cargo watch -x 'run --bin learn-htmx'";
+              processes.app-serve.exec = "cargo watch -x 'run --bin learn-htmx'";
+              services.mysql = {
+                enable = true;
+                initialDatabases = [
+                  { 
+                    name = "contacts";
+                    schema = ./contact-schema.sql;}
+                ];
+                ensureUsers = [
+                  { 
+                    name = "devenv";
+                    ensurePermissions = {
+                      "contacts.*" = "ALL PRIVILEGES";
+                    };
+                  }
+                ];
+              };
             }
           ];
         };
