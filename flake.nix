@@ -43,7 +43,8 @@
               env  = with pkgs; {
                 OPENSSL_DIR = "${openssl.dev}";
                 OPENSSL_LIB_DIR = "${openssl.out}/lib";
-                DATABASE_URL = "sqlite://sqlite.db";
+                # DATABASE_URL = "sqlite://sqlite.db";
+                DATABASE_URL="mysql://devenv@localhost/contacts";
               };
               processes.app-serve.exec = "cargo watch -x 'run --bin learn-htmx'";
               services.mysql = {
