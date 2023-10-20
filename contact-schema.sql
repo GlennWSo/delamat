@@ -1,6 +1,6 @@
 
 CREATE TABLE contacts (
-    id          INT             NOT NULL,
+    id          INT             NOT NULL AUTO_INCREMENT,
     name        VARCHAR(14)     NOT NULL,
     email       VARCHAR(16)     NOT NULL,
     PRIMARY KEY (id)
