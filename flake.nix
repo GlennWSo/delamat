@@ -2,66 +2,58 @@
 {
   inputs =  {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-    flake-utils.url = "github:numtide/flake-utils";
     rust-overlay.url = "github:oxalica/rust-overlay";
+    systems.url = "github:nix-systems/default";
+    devenv.url = "github:cachix/devenv/v0.6.3";
   };
 
-  outputs = { self, nixpkgs, flake-utils, rust-overlay }:
+  nixConfig = {
+    extra-trusted-public-keys = "devenv.cachix.org-1:w1cLUi8dv3hnoSPGAuibQv+f9TZLr6cv/Hm9XgU50cw=";
+    extra-substituters = "https://devenv.cachix.org";
+  };
 
-    flake-utils.lib.eachDefaultSystem (system:
-      let
+  outputs = { self, nixpkgs, rust-overlay, devenv, systems } @ inputs:
+  let 
+    forEachSystem = nixpkgs.lib.genAttrs (import systems);
+
+  in
+  {
+    devShells = forEachSystem(system:
+      let 
         overlays = [ (import rust-overlay) ];
         pkgs = import nixpkgs {
           inherit system overlays;
-        };        py = pkgs.python311Packages;
-        python = py.python;
-
-        dev_run = pkgs.writeScriptBin "run" ''
-          python -m flask --app ./main.py --debug run
-        '';
-
+        };
         rust = pkgs.rust-bin.nightly.latest.default;
-        openssl=pkgs.openssl;
-
+        tools = with pkgs; [
+          vscode-langservers-extracted
+          rust
+          bacon
+          rust-analyzer
+          sqlitebrowser
+          git-graph
+          cargo-watch
+        ];
       in
-        {
-          devShell = pkgs.mkShell rec {
-            name = "flake pyrust";
-            venvDir = ".venv";
-            DATABASE_URL = "sqlite://sqlite.db";
-            root = ./.;
-
-            buildInputs = [
-              dev_run
-              pkgs.vscode-langservers-extracted
-              python
-              py.venvShellHook
-              py.black
-              py.flask
-              py.email-validator
-              rust
-              pkgs.bacon
-              pkgs.rust-analyzer
-              pkgs.sqlitebrowser
-              pkgs.git-graph
-
-            ];
-            PY = py.python;
-
-            postVenvCreation = ''
-              unset SOURCE_DATE_EPOCH
-              # pip install -r ${root}/deps/requirements.txt
-              # pip install -r ${root}/deps/test_requirements.txt
-            '';
-
-            postShellHook = ''
-              # allow pip to install wheels
-              unset SOURCE_DATE_EPOCH
-              export IPYTHONDIR=$PWD/.ipy/           
-              export OPENSSL_DIR="${openssl.dev}"
-              export OPENSSL_LIB_DIR="${openssl.out}/lib"
-            '';
-          };
-        }
+        { default = devenv.lib.mkShell {
+          inherit inputs pkgs;
+          modules = [
+            {
+              packages = tools;
+              env  = with pkgs; {
+                OPENSSL_DIR = "${openssl.dev}";
+                OPENSSL_LIB_DIR = "${openssl.out}/lib";
+                DATABASE_URL = "sqlite://sqlite.db";
+              };
+              processes.serve.exec = "cargo watch -x 'run --bin learn-htmx'";
+            }
+          ];
+        };
+      }
     );
+  };
 }
+
+
+
+        
