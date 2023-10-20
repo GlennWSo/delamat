@@ -7,7 +7,7 @@ CREATE TABLE contacts (
 );
 
 INSERT INTO contacts
-        (id, name, email)
+        (name, email)
         VALUES
       ('John', 'g0@gmail.com'), 
       ('Jane', 'g1@gmail.com'), 
