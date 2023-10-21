@@ -162,7 +162,7 @@ impl IntoResponse for EditResult {
                 flashes,
             } => {
                 let c = Contact {
-                    id: id as i64,
+                    id: id as i32,
                     name: ui.name,
                     email: ui.email,
                 };
@@ -320,7 +320,7 @@ async fn main() {
 
     // build our application
     // run it with hyper on localhost:3000
-    let port = 3000;
+    let port = 1111;
     let adress = format!("0.0.0.0:{port}");
     let url = format!("http://127.0.0.1:{port}");
     let link = Link::new(&url, &url);

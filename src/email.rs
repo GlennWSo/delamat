@@ -86,7 +86,7 @@ pub async fn validate_email(db: &DB, q: EmailQuery) -> sqlx::Result<EmailFeedBac
     match db.find_email(&q.email).await? {
         None => Ok(EmailFeedBack::ok(true)),
         Some(old_id) => match q.id {
-            Some(query_id) if query_id as i64 == old_id => Ok(EmailFeedBack::ok(true)),
+            Some(query_id) if query_id as i32 == old_id => Ok(EmailFeedBack::ok(true)),
             _ => Ok(EmailFeedBack::err(EmailError::Occupied)),
         },
     }

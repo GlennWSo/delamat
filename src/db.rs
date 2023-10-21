@@ -4,39 +4,44 @@ use std::env;
 // pub use sqlx::Result;
 use sqlx::{
     self,
-    sqlite::{SqlitePoolOptions, SqliteQueryResult},
-    FromRow, SqlitePool,
+    mysql::{MySqlPool, MySqlPoolOptions, MySqlQueryResult},
+    // sqlite::{SqlitePoolOptions, SqliteQueryResult},
+    FromRow,
 };
 
 // struct DBError(sqlx::Error)
 
+// const DB_URL: &str = "mysql://devenv:@localhost/contacts";
 const DB_URL: &str = env!("DATABASE_URL");
 
 #[derive(Clone)]
 pub struct DBConnection {
-    pool: SqlitePool,
+    pool: MySqlPool,
 }
 
 pub type DB = DBConnection;
 
 impl DB {
-    pub fn conn(&self) -> &SqlitePool {
+    pub fn conn(&self) -> &MySqlPool {
         &self.pool
     }
 
     pub async fn new(pool_size: u32) -> Self {
-        let pool = SqlitePoolOptions::new()
-            .max_connections(pool_size)
-            .connect(DB_URL)
-            .await
-            .unwrap();
+        let pool = MySqlPool::connect(DB_URL).await.unwrap();
         Self { pool }
     }
 
     pub async fn search_by_name(&self, term: &str) -> sqlx::Result<Vec<Contact>> {
-        sqlx::query_as!(Contact, "select * from contacts where instr(name, ?)", term)
-            .fetch_all(&self.pool)
-            .await
+        let reg = format!(r#"%{term}%"#);
+        sqlx::query_as!(
+            Contact,
+            r#"
+                select * from contacts
+                where name like ?"#,
+            reg
+        )
+        .fetch_all(&self.pool)
+        .await
     }
     pub async fn get_all_contacts(&self) -> sqlx::Result<Vec<Contact>> {
         sqlx::query_as!(Contact, "select * from contacts")
@@ -49,7 +54,7 @@ impl DB {
         id: u32,
         name: &str,
         email: &str,
-    ) -> sqlx::Result<SqliteQueryResult> {
+    ) -> sqlx::Result<MySqlQueryResult> {
         sqlx::query!(
             "update contacts
             set name = ?, email = ?
@@ -62,10 +67,10 @@ impl DB {
         .await
     }
 
-    pub async fn find_email(&self, email: &str) -> sqlx::Result<Option<i64>> {
+    pub async fn find_email(&self, email: &str) -> sqlx::Result<Option<i32>> {
         let res = sqlx::query!(
             "select id from contacts
-            where email == ?",
+            where email = ?",
             email
         )
         .fetch_optional(&self.pool)
@@ -79,11 +84,7 @@ impl DB {
         }
     }
 
-    pub async fn add_contact(
-        &self,
-        name: String,
-        email: String,
-    ) -> sqlx::Result<SqliteQueryResult> {
+    pub async fn add_contact(&self, name: String, email: String) -> sqlx::Result<MySqlQueryResult> {
         sqlx::query!(
             "insert into contacts (name, email)
             values (?, ?)",
@@ -93,7 +94,7 @@ impl DB {
         .execute(&self.pool)
         .await
     }
-    pub async fn remove_contact(&self, id: u32) -> sqlx::Result<SqliteQueryResult> {
+    pub async fn remove_contact(&self, id: u32) -> sqlx::Result<MySqlQueryResult> {
         sqlx::query!("delete from contacts where id = ?", id)
             .execute(&self.pool)
             .await
@@ -115,7 +116,7 @@ impl DB {
 // `'r` is the lifetime of the `Row` being decoded
 #[derive(Clone, FromRow, Debug)]
 pub struct Contact {
-    pub id: i64,
+    pub id: i32,
     pub name: String,
     pub email: String,
 }
