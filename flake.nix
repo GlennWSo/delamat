@@ -33,6 +33,7 @@
           sqlitebrowser
           git-graph
           cargo-watch
+          beekeeper-studio
         ];
       in
         { default = devenv.lib.mkShell {
