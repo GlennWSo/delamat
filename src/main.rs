@@ -2,26 +2,21 @@
 //thirds
 use axum::{
     body::StreamBody,
-    extract::{Form, FromRef, Path, Query, State},
+    extract::{Form, Path, Query, State},
     http::{header, StatusCode},
     response::{Html, IntoResponse, Redirect, Response},
-    routing::{delete, get, post},
-    Extension, Router,
+    routing::{delete, get, post}, Router,
 };
-use axum_flash::{self, Flash, IncomingFlashes, Key, Level};
+use axum_flash::{self, Flash, IncomingFlashes, Level};
 use email_address::{self, EmailAddress};
 use futures_util::stream;
 use log::error;
 use maud::{html, Markup};
 use serde::Deserialize;
-use sqlx::{mysql::MySqlPoolOptions, MySqlPool};
+
 use terminal_link::Link;
 
-use axum_login::{
-    axum_sessions::{async_session::MemoryStore, SessionLayer},
-    secrecy::SecretVec,
-    AuthLayer, AuthUser, MySqlStore, RequireAuthorizationLayer,
-};
+
 
 use std::{io, str::FromStr};
 
@@ -29,7 +24,7 @@ use learn_htmx::{
     auth::make_auth,
     // auth::User,
     db::{Contact, DB},
-    email::{validate_email, EmailFeedBack, EmailQuery},
+    email::{validate_email, EmailQuery},
     templates,
     AppState,
 };

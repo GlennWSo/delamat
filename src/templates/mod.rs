@@ -1,7 +1,7 @@
 mod core;
 use core::layout;
 
-use crate::{db::Contact, email::EmailFeedBack};
+use crate::{db::Contact};
 // use askama::Template;
 
 use maud::{html, Markup};
