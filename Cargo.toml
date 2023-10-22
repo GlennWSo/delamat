@@ -9,7 +9,7 @@ edition = "2021"
 askama = "0.12.0"
 axum = { version = "0.6.20", features = ["query", "headers"] }
 tokio = { version = "1.32.0", features = ["macros", "rt-multi-thread", "full"] }
-sqlx = { version = "0.6.2", features = ["runtime-tokio-native-tls", "mysql"]}
+sqlx = { version = "0.6.2", features = ["mysql"]}
 serde = { version = "1.0.188", features = ["derive"] }
 email_address = "0.2.4"
 headers = "0.3.9"
@@ -19,5 +19,5 @@ axum-flash = "0.7.0"
 maud = { version = "0.25.0", features = ["axum"] }
 log = "0.4.20"
 terminal-link = "0.1.0"
-axum-login = { version = "0.6.0", features = ["mysql", "sqlx"] }
+axum-login = { version = "0.6.0", features=["mysql"]} 
 # futures-core = "0.3.28"
