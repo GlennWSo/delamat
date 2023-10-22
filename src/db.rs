@@ -27,7 +27,11 @@ impl DB {
     }
 
     pub async fn new(pool_size: u32) -> Self {
-        let pool = MySqlPool::connect(DB_URL).await.unwrap();
+        let pool = MySqlPoolOptions::new()
+            .max_connections(pool_size)
+            .connect(DB_URL)
+            .await
+            .unwrap();
         Self { pool }
     }
 
