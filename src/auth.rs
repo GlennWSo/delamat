@@ -1,20 +1,21 @@
-use axum::{extract::State, response::IntoResponse, routing::get, Extension, Router};
-use axum_flash::IncomingFlashes;
+use axum::{extract::State, response::IntoResponse, routing::get, Extension, Form, Router};
+use axum_flash::{Flash, IncomingFlashes, Level};
 use axum_login::{
     axum_sessions::{async_session::MemoryStore, SessionLayer},
     secrecy::SecretVec,
     AuthLayer, AuthUser, MySqlStore, RequireAuthorizationLayer,
 };
 use maud::html;
+use serde::Deserialize;
 // use html_macro::html;
 
-use crate::{templates::contact::new_contact, AppState};
+use crate::AppState;
 
 use crate::templates::layout;
 use crate::templates::Markup;
 use crate::templates::MsgIterable;
 
-fn make_user_template<'a>(msgs: impl MsgIterable<'a>) -> Markup {
+fn new_user_template<'a>(msgs: impl MsgIterable<'a>) -> Markup {
     let content = html! {
         h2 {"Create a Account"}
         form action="user/new" method="post" {
@@ -24,22 +25,36 @@ fn make_user_template<'a>(msgs: impl MsgIterable<'a>) -> Markup {
                     input #name name="name" type="text" placeholder="your alias";
                 }
                 p {
-                    label for="email" { "Email" }
-                    input #email email="email" type="email" placeholder="you@example.org";
+                    label for="password" { "Password" }
+                    input #password password="password" type="password";
                 }
-                button { " save" }
+                button { "save" }
             }
         }
     };
     layout(content, msgs)
 }
 
-async fn new_user_handler(
-    State(state): State<AppState>,
-    flashes: IncomingFlashes,
-) -> (IncomingFlashes, Markup) {
-    let body = make_user_template(flashes.iter());
+async fn new_user_handler(flashes: IncomingFlashes) -> (IncomingFlashes, Markup) {
+    let body = new_user_template(flashes.iter());
     (flashes, body)
+}
+
+#[derive(Deserialize, Debug)]
+struct Input {
+    name: String,
+    password: String,
+}
+async fn new_user_create(
+    Form(input): Form<Input>,
+    State(state): State<AppState>,
+    flash: Flash,
+) -> impl IntoResponse {
+    let msg = (
+        Level::Error,
+        format!("Not yet implemtented: anyways got input:{:#?}", input).as_str(),
+    );
+    new_user_template(Some(msg))
 }
 
 #[derive(Debug, Default, Clone, sqlx::FromRow)]
@@ -53,7 +68,6 @@ impl AuthUser<i32> for User {
     fn get_id(&self) -> i32 {
         self.id
     }
-
     fn get_password_hash(&self) -> axum_login::secrecy::SecretVec<u8> {
         let hash = dbg!(self.password_hash.clone());
         SecretVec::new(hash.into())
