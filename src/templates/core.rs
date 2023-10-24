@@ -1,13 +1,14 @@
+use std::ops::Deref;
+
 use axum_flash::Level;
 use maud::{html, Markup, DOCTYPE};
 
-pub trait MsgIter<'a> = Iterator<Item = Msg<'a>>;
-pub trait MsgIterable<'a> = IntoIterator<Item = Msg<'a>>;
-
-pub type Msg<'a> = (Level, &'a str);
+pub type Msg = (Level, impl Deref<Target = str>);
+pub trait MsgIter = Iterator<Item = Msg>;
+pub trait MsgIterable = IntoIterator<Item = Msg>;
 
 ///should wrap it self with something
-pub fn layout<'a>(content: Markup, msgs: impl MsgIterable<'a>) -> Markup {
+pub fn layout(content: Markup, msgs: impl MsgIterable) -> Markup {
     html! {
         (DOCTYPE)
         html lang="en" {
@@ -49,7 +50,7 @@ fn head(title: &str) -> Markup {
     }
 }
 
-fn flashy_flash<'a>(msgs: impl MsgIterable<'a>) -> Markup {
+fn flashy_flash(msgs: impl MsgIterable) -> Markup {
     html! {
         @for (lvl, msg) in msgs{
             @match lvl {
