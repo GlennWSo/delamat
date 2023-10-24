@@ -15,7 +15,7 @@ use crate::templates::layout;
 use crate::templates::Markup;
 use crate::templates::MsgIterable;
 
-fn new_user_template<'a>(msgs: impl MsgIterable<'a>) -> Markup {
+fn new_user_template(msgs: impl MsgIterable) -> Markup {
     let content = html! {
         h2 {"Create a Account"}
         form action="user/new" method="post" {
