@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-askama = "0.12.0"
+# askama = "0.12.0"
 axum = { version = "0.6.20", features = ["query", "headers"] }
 tokio = { version = "1.32.0", features = ["macros", "rt-multi-thread", "full"] }
 sqlx = { version = "0.6.2", features = ["mysql"]}
@@ -20,4 +20,6 @@ maud = { version = "0.25.0", features = ["axum"] }
 log = "0.4.20"
 terminal-link = "0.1.0"
 axum-login = { version = "0.6.0", features=["mysql"]} 
+# percy-dom = "0.9.6"
+# html-macro = "0.2.2"
 # futures-core = "0.3.28"

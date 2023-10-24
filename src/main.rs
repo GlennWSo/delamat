@@ -5,7 +5,8 @@ use axum::{
     extract::{Form, Path, Query, State},
     http::{header, StatusCode},
     response::{Html, IntoResponse, Redirect, Response},
-    routing::{delete, get, post}, Router,
+    routing::{delete, get, post},
+    Router,
 };
 use axum_flash::{self, Flash, IncomingFlashes, Level};
 use email_address::{self, EmailAddress};
@@ -15,8 +16,6 @@ use maud::{html, Markup};
 use serde::Deserialize;
 
 use terminal_link::Link;
-
-
 
 use std::{io, str::FromStr};
 
@@ -52,13 +51,13 @@ async fn view(
             }
         },
     };
-    let html = templates::contact_details(&flashes, &c);
+    let html = templates::contact::contact_details(&flashes, &c);
 
     Result::Ok((flashes, html))
 }
 
 async fn get_new(flashes: IncomingFlashes) -> (IncomingFlashes, Markup) {
-    let content = templates::new_contact("", "", None, &flashes);
+    let content = templates::contact::new_contact("", "", None, &flashes);
     (flashes, content)
 }
 
@@ -68,7 +67,7 @@ async fn get_edit(
     Path(id): Path<u32>,
 ) -> Markup {
     let c = state.db.get_contact(id).await.unwrap();
-    templates::edit_contact(&c, &flashes, None)
+    templates::contact::edit_contact(&c, &flashes, None)
 }
 
 #[derive(Deserialize, Debug)]
@@ -88,7 +87,7 @@ async fn post_new(
         Err(e) => {
             error!("db error: {}", e);
             let msg = (Level::Error, "Internal Error".into());
-            return templates::new_contact(&input.name, &input.email, None, Some(msg))
+            return templates::contact::new_contact(&input.name, &input.email, None, Some(msg))
                 .into_response();
         }
     };
@@ -102,8 +101,10 @@ async fn post_new(
             )
                 .into_response()
         }
-        Err(e) => templates::new_contact(&input.name, &input.email, Some(&e.to_string()), None)
-            .into_response(),
+        Err(e) => {
+            templates::contact::new_contact(&input.name, &input.email, Some(&e.to_string()), None)
+                .into_response()
+        }
     }
 }
 
@@ -171,7 +172,8 @@ impl IntoResponse for EditResult {
                     name: ui.name,
                     email: ui.email,
                 };
-                let view: String = templates::edit_contact(&c, &flashes, Some(&msg)).into_string();
+                let view: String =
+                    templates::contact::edit_contact(&c, &flashes, Some(&msg)).into_string();
                 Html::from(view).into_response()
             }
         }
@@ -244,7 +246,7 @@ async fn home(
     let has_more = contacts.len() > 10;
     contacts.truncate(10);
     dbg!(&flashes);
-    let body = templates::contact_list(&flashes, &contacts, p as u32, has_more);
+    let body = templates::contact::contact_list(&flashes, &contacts, p as u32, has_more);
     (flashes, body)
 }
 
