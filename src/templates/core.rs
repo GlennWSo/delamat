@@ -40,6 +40,7 @@ fn head(title: &str) -> Markup {
                 src="https://unpkg.com/htmx.org@1.9.5"
                 integrity="sha384-xcuj3WpfgjlKF+FXhSQFQ0ZNr39ln+hwjN3npfM9VBnUskLolQAcN80McRIVOPuO"
                 crossorigin="anonymous"{}
+            script src="https://unpkg.com/hyperscript.org@0.9.12" {}
             style {
                 "body {padding-left: 1em}"
                 "td {padding-right: 1em}"
