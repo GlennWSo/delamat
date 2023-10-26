@@ -13,7 +13,7 @@ use axum_login::{
     AuthLayer, AuthUser, MySqlStore, RequireAuthorizationLayer,
 };
 use log::error;
-use maud::html;
+use maud::{html, PreEscaped};
 use serde::Deserialize;
 // use html_macro::html;
 
@@ -74,11 +74,30 @@ fn new_user_template<T: Display>(
                 }
                 p {
                     label for="email" { "email" }
-                    (email_input("", email_feedback))
+                    (email_input("", "./email/validate", email_feedback))
                 }
                 p {
                     label for="password" { "Password" }
-                    input #password name="password" type="password";
+                    input #password name="password" type="password" _="
+                        on change or keyup debounced at 350ms
+                            send newpass to #confirm-password
+                    ";
+                }
+                p {
+                    label for="confirm-password" { "Confirm Password" }
+                    input #confirm-password type="password" _="
+                        on newpass or change or keyup debounced at 350ms  
+                        if my value equals #password.value 
+                            remove @hidden from #repeat-ok
+                            add @hidden to #repeat-nok
+                        else if my value is not ''
+                            add @hidden to #repeat-ok
+                            remove @hidden from #repeat-nok"
+                    ;
+                    span #repeat-ok hidden {"✅"}
+                    span.alert.alert-danger hidden #repeat-nok role="alert" {
+                        "passwords do not match"
+                    }
                 }
                 button { "save" }
             }
