@@ -71,6 +71,22 @@ impl DB {
         .await
     }
 
+    pub async fn find_user_email(&self, email: &str) -> sqlx::Result<Option<i32>> {
+        let res = sqlx::query!(
+            "select id from users
+            where email = ?",
+            email
+        )
+        .fetch_optional(&self.pool)
+        .await;
+        match res {
+            Ok(v) => match v {
+                Some(v) => Ok(Some(v.id)),
+                None => Ok(None),
+            },
+            Err(e) => Err(e),
+        }
+    }
     pub async fn find_email(&self, email: &str) -> sqlx::Result<Option<i32>> {
         let res = sqlx::query!(
             "select id from contacts

@@ -5,10 +5,10 @@ use axum::extract::FromRef;
 use axum_flash::Key;
 use db::DB;
 
-pub mod auth;
 pub mod db;
 pub mod email;
 pub mod templates;
+pub mod user;
 
 #[derive(Clone)]
 pub struct AppState {

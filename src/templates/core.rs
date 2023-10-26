@@ -1,14 +1,14 @@
-use std::ops::Deref;
+use std::fmt::Display;
 
 use axum_flash::Level;
 use maud::{html, Markup, DOCTYPE};
 
-pub type Msg = (Level, impl Deref<Target = str>);
-pub trait MsgIter = Iterator<Item = Msg>;
-pub trait MsgIterable = IntoIterator<Item = Msg>;
+pub type Msg<T> = (Level, T);
+pub trait MsgIter<T: Display> = Iterator<Item = Msg<T>>;
+pub trait MsgIterable<T: Display> = IntoIterator<Item = Msg<T>>;
 
 ///should wrap it self with something
-pub fn layout(content: Markup, msgs: impl MsgIterable) -> Markup {
+pub fn layout<T: Display>(content: Markup, msgs: impl MsgIterable<T>) -> Markup {
     html! {
         (DOCTYPE)
         html lang="en" {
@@ -50,14 +50,42 @@ fn head(title: &str) -> Markup {
     }
 }
 
-fn flashy_flash(msgs: impl MsgIterable) -> Markup {
+fn flashy_flash<T: Display>(msgs: impl MsgIterable<T>) -> Markup {
     html! {
         @for (lvl, msg) in msgs{
             @match lvl {
-                axum_flash::Level::Debug => {},
-                axum_flash::Level::Info => {},
-                axum_flash::Level::Warning => {},
-                axum_flash::Level::Error => {},
+                axum_flash::Level::Debug => {
+                    div.alert.alert-debug.alert-dismissible.fade.show role="alert"{
+                        (msg)
+                        button.btn-close type="button" data-bs-dismiss="alert" aria-label="Close" {
+                            // span aria-hidden="true" {r#"&times;"#}
+                        }
+                    }
+                },
+                axum_flash::Level::Info => {
+                    div.alert.alert-info.alert-dismissible.fade.show role="alert"{
+                        (msg)
+                        button.btn-close type="button" data-bs-dismiss="alert" aria-label="Close" {
+                            // span aria-hidden="true" {r#"&times;"#}
+                        }
+                    }
+                },
+                axum_flash::Level::Warning => {
+                    div.alert.alert-warning.alert-dismissible.fade.show role="alert"{
+                        (msg)
+                        button.btn-close type="button" data-bs-dismiss="alert" aria-label="Close" {
+                            // span aria-hidden="true" {r#"&times;"#}
+                        }
+                    }
+                },
+                axum_flash::Level::Error => {
+                    div.alert.alert-error.alert-dismissible.fade.show role="alert"{
+                        (msg)
+                        button.btn-close type="button" data-bs-dismiss="alert" aria-label="Close" {
+                            // span aria-hidden="true" {r#"&times;"#}
+                        }
+                    }
+                },
                 axum_flash::Level::Success => {
                     div.alert.alert-success.alert-dismissible.fade.show role="alert"{
                         (msg)

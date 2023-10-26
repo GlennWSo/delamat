@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::db::Contact;
 
 use super::layout;
@@ -6,8 +8,8 @@ use super::MsgIterable;
 
 use maud::html;
 
-pub fn contact_list<'a>(
-    flashes: impl MsgIterable<'a>,
+pub fn contact_list<T>(
+    flashes: impl MsgIterable<T>,
     contacts: &[Contact],
     page: u32,
     more_pages: bool,
@@ -80,7 +82,7 @@ pub fn contact_list<'a>(
     layout(content, flashes)
 }
 
-pub fn contact_details<'a>(flashes: impl MsgIterable<'a>, contact: &Contact) -> Markup {
+pub fn contact_details<T: Display>(flashes: impl MsgIterable<T>, contact: &Contact) -> Markup {
     let content = html! {
         div #main{
             p {
@@ -97,9 +99,9 @@ pub fn contact_details<'a>(flashes: impl MsgIterable<'a>, contact: &Contact) -> 
     };
     layout(content, flashes)
 }
-pub fn edit_contact<'a>(
+pub fn edit_contact<T: Display>(
     contact: &Contact,
-    flashes: impl MsgIterable<'a>,
+    flashes: impl MsgIterable<T>,
     email_error: Option<&str>,
 ) -> Markup {
     let content = html! {
@@ -154,11 +156,11 @@ pub fn edit_contact<'a>(
     layout(content, flashes)
 }
 
-pub fn new_contact<'a>(
+pub fn new_contact<T: Display>(
     name: &str,
     email: &str,
     email_error: Option<&str>,
-    flashes: impl MsgIterable<'a>,
+    flashes: impl MsgIterable<T>,
 ) -> Markup {
     let content = html! {
         div #main {

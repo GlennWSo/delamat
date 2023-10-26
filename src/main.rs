@@ -20,11 +20,11 @@ use terminal_link::Link;
 use std::{io, str::FromStr};
 
 use learn_htmx::{
-    auth::make_auth,
     // auth::User,
     db::{Contact, DB},
     email::{validate_email, EmailQuery},
     templates,
+    user::make_auth,
     AppState,
 };
 
@@ -86,7 +86,7 @@ async fn post_new(
         Ok(feedback) => feedback,
         Err(e) => {
             error!("db error: {}", e);
-            let msg = (Level::Error, "Internal Error".into());
+            let msg = (Level::Error, "Internal Error");
             return templates::contact::new_contact(&input.name, &input.email, None, Some(msg))
                 .into_response();
         }
@@ -102,7 +102,8 @@ async fn post_new(
                 .into_response()
         }
         Err(e) => {
-            templates::contact::new_contact(&input.name, &input.email, Some(&e.to_string()), None)
+            let nomsg: Option<(Level, &str)> = None;
+            templates::contact::new_contact(&input.name, &input.email, Some(&e.to_string()), nomsg)
                 .into_response()
         }
     }

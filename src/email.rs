@@ -33,9 +33,9 @@ impl Display for EmailError {
 }
 
 #[derive(Debug)]
-pub struct IsNewEmail(bool);
+pub struct IsNew(bool);
 
-impl Display for IsNewEmail {
+impl Display for IsNew {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.0 {
             write!(f, "✅")
@@ -45,11 +45,11 @@ impl Display for IsNewEmail {
     }
 }
 #[derive(Debug)]
-pub struct EmailFeedBack(pub Result<IsNewEmail, EmailError>);
+pub struct EmailFeedBack(pub Result<IsNew, EmailError>);
 
 impl EmailFeedBack {
     fn ok(new: bool) -> Self {
-        Self(Ok(IsNewEmail(new)))
+        Self(Ok(IsNew(new)))
     }
     fn err(e: EmailError) -> Self {
         Self(Err(e))
@@ -60,7 +60,7 @@ impl EmailFeedBack {
 }
 impl Default for EmailFeedBack {
     fn default() -> Self {
-        Self(Ok(IsNewEmail(false)))
+        Self(Ok(IsNew(false)))
     }
 }
 
@@ -78,12 +78,27 @@ impl From<EmailFeedBack> for Markup {
     }
 }
 
+/// check if email string is formated proparly and if occupied
 pub async fn validate_email(db: &DB, q: EmailQuery) -> sqlx::Result<EmailFeedBack> {
     let email_res = EmailAddress::from_str(&q.email);
     if let Err(e) = email_res {
         return Ok(EmailFeedBack::err(EmailError::FormatError(e)));
     };
     match db.find_email(&q.email).await? {
+        None => Ok(EmailFeedBack::ok(true)),
+        Some(old_id) => match q.id {
+            Some(query_id) if query_id as i32 == old_id => Ok(EmailFeedBack::ok(true)),
+            _ => Ok(EmailFeedBack::err(EmailError::Occupied)),
+        },
+    }
+}
+/// check if email string is formated proparly and if occupied
+pub async fn validate_user_email(db: &DB, q: EmailQuery) -> sqlx::Result<EmailFeedBack> {
+    let email_res = EmailAddress::from_str(&q.email);
+    if let Err(e) = email_res {
+        return Ok(EmailFeedBack::err(EmailError::FormatError(e)));
+    };
+    match db.find_user_email(&q.email).await? {
         None => Ok(EmailFeedBack::ok(true)),
         Some(old_id) => match q.id {
             Some(query_id) if query_id as i32 == old_id => Ok(EmailFeedBack::ok(true)),

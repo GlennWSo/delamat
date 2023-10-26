@@ -1,32 +1,84 @@
-use axum::{extract::State, response::IntoResponse, routing::get, Extension, Form, Router};
+use std::fmt::Display;
+
+use axum::{
+    extract::{Query, State},
+    response::IntoResponse,
+    routing::{get, post},
+    Extension, Form, Router,
+};
 use axum_flash::{Flash, IncomingFlashes, Level};
 use axum_login::{
     axum_sessions::{async_session::MemoryStore, SessionLayer},
     secrecy::SecretVec,
     AuthLayer, AuthUser, MySqlStore, RequireAuthorizationLayer,
 };
+use log::error;
 use maud::html;
 use serde::Deserialize;
 // use html_macro::html;
 
-use crate::AppState;
+use crate::{
+    email::{validate_email, validate_user_email, EmailQuery},
+    AppState,
+};
 
 use crate::templates::layout;
 use crate::templates::Markup;
 use crate::templates::MsgIterable;
 
-fn new_user_template(msgs: impl MsgIterable) -> Markup {
+async fn email_validation(State(state): State<AppState>, Query(q): Query<EmailQuery>) -> Markup {
+    let db_res = validate_user_email(&state.db, q).await;
+    match db_res {
+        Ok(email_feedback) => email_feedback.into(),
+        Err(db_error) => {
+            error!("{}", db_error);
+            html! { span { "Internal Error" }}
+        }
+    }
+}
+
+fn email_input(init_value: &str, validation_url: &str, error_msg: Option<&str>) -> Markup {
+    html! {
+                        input #email
+                            name="email"
+                            type="email"
+                            placeholder="name@example.org"
+                            value=(init_value)
+                            hx-get=(validation_url)
+                            hx-params="*"
+                            hx-trigger="change, keyup delay:350ms changed"
+                            hx-target="next span"
+                            hx-swap="outerHTML";
+                        @if let Some(e) = error_msg {
+                            span.alert.alert-danger role="alert" {
+                                (e)
+                            }
+                        }
+                        @else {
+                            span {}
+                        }
+
+    }
+}
+fn new_user_template<T: Display>(
+    msgs: impl MsgIterable<T>,
+    email_feedback: Option<&str>,
+) -> Markup {
     let content = html! {
         h2 {"Create a Account"}
-        form action="user/new" method="post" {
+        form action="new" method="post" {
             fieldset {
                 p {
                     label for="name" { "Name" }
                     input #name name="name" type="text" placeholder="your alias";
                 }
                 p {
+                    label for="email" { "email" }
+                    (email_input("", email_feedback))
+                }
+                p {
                     label for="password" { "Password" }
-                    input #password password="password" type="password";
+                    input #password name="password" type="password";
                 }
                 button { "save" }
             }
@@ -35,26 +87,30 @@ fn new_user_template(msgs: impl MsgIterable) -> Markup {
     layout(content, msgs)
 }
 
-async fn new_user_handler(flashes: IncomingFlashes) -> (IncomingFlashes, Markup) {
-    let body = new_user_template(flashes.iter());
+async fn get_new_user(flashes: IncomingFlashes) -> (IncomingFlashes, Markup) {
+    let body = new_user_template(flashes.iter(), None);
     (flashes, body)
 }
 
 #[derive(Deserialize, Debug)]
-struct Input {
+struct NewUserInput {
     name: String,
     password: String,
+    email: String,
 }
-async fn new_user_create(
-    Form(input): Form<Input>,
+
+#[axum::debug_handler]
+async fn post_new_user(
     State(state): State<AppState>,
-    flash: Flash,
+    // _flash: Flash,
+    Form(input): Form<NewUserInput>,
 ) -> impl IntoResponse {
     let msg = (
-        Level::Error,
-        format!("Not yet implemtented: anyways got input:{:#?}", input).as_str(),
+        Level::Debug,
+        format!("Not yet implemtented: anyways got input:{:#?}", input),
     );
-    new_user_template(Some(msg))
+    let feedback = validate_email(&state.db, EmailQuery::new(input.email));
+    new_user_template(Some(msg), Some("TODO!"))
 }
 
 #[derive(Debug, Default, Clone, sqlx::FromRow)]
@@ -62,6 +118,7 @@ struct User {
     id: i32,
     password_hash: String,
     name: String,
+    email: String,
 }
 
 impl AuthUser<i32> for User {
@@ -110,9 +167,12 @@ pub fn make_auth(app: &AppState) -> Router<AppState> {
     Router::new()
         .route("/pro", get(protected_info))
         .route_layer(RequireAuthorizationLayer::<i32, User>::login())
-        .route("/new", get(new_user_handler))
+        .route("/new", post(post_new_user))
+        .route("/new", get(get_new_user))
+        .route("/email/validate", get(email_validation))
         .route("/logout", get(logout_handler))
         .route("/login", get(login_handler))
         .layer(auth_layer)
         .layer(session_layer)
+        .with_state(app.clone())
 }
