@@ -22,6 +22,8 @@ use crate::{
     AppState,
 };
 
+mod templates;
+
 use crate::templates::layout;
 use crate::templates::Markup;
 use crate::templates::MsgIterable;
@@ -37,29 +39,6 @@ async fn email_validation(State(state): State<AppState>, Query(q): Query<EmailQu
     }
 }
 
-fn email_input(init_value: &str, validation_url: &str, error_msg: Option<&str>) -> Markup {
-    html! {
-                        input #email
-                            name="email"
-                            type="email"
-                            placeholder="name@example.org"
-                            value=(init_value)
-                            hx-get=(validation_url)
-                            hx-params="*"
-                            hx-trigger="change, keyup delay:350ms changed"
-                            hx-target="next span"
-                            hx-swap="outerHTML";
-                        @if let Some(e) = error_msg {
-                            span.alert.alert-danger role="alert" {
-                                (e)
-                            }
-                        }
-                        @else {
-                            span {}
-                        }
-
-    }
-}
 fn new_user_template<T: Display>(
     msgs: impl MsgIterable<T>,
     email_feedback: Option<&str>,
