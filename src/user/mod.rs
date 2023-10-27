@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{collections::HashSet, fmt::Display};
 
 use axum::{
     extract::{Query, State},
@@ -17,13 +17,14 @@ use maud::{html, PreEscaped};
 use serde::Deserialize;
 // use html_macro::html;
 
+mod templates;
+
 use crate::{
     email::{validate_email, validate_user_email, EmailQuery},
     AppState,
 };
 
-mod templates;
-
+use self::templates::new_user_template;
 use crate::templates::layout;
 use crate::templates::Markup;
 use crate::templates::MsgIterable;
@@ -39,54 +40,98 @@ async fn email_validation(State(state): State<AppState>, Query(q): Query<EmailQu
     }
 }
 
-fn new_user_template<T: Display>(
-    msgs: impl MsgIterable<T>,
-    email_feedback: Option<&str>,
-) -> Markup {
-    let content = html! {
-        h2 {"Create a Account"}
-        form action="new" method="post" {
-            fieldset {
-                p {
-                    label for="name" { "Name" }
-                    input #name name="name" type="text" placeholder="your alias";
-                }
-                p {
-                    label for="email" { "email" }
-                    (email_input("", "./email/validate", email_feedback))
-                }
-                p {
-                    label for="password" { "Password" }
-                    input #password name="password" type="password" _="
-                        on change or keyup debounced at 350ms
-                            send newpass to #confirm-password
-                    ";
-                }
-                p {
-                    label for="confirm-password" { "Confirm Password" }
-                    input #confirm-password type="password" _="
-                        on newpass or change or keyup debounced at 350ms  
-                        if my value equals #password.value 
-                            remove @hidden from #repeat-ok
-                            add @hidden to #repeat-nok
-                        else if my value is not ''
-                            add @hidden to #repeat-ok
-                            remove @hidden from #repeat-nok"
-                    ;
-                    span #repeat-ok hidden {"✅"}
-                    span.alert.alert-danger hidden #repeat-nok role="alert" {
-                        "passwords do not match"
-                    }
-                }
-                button { "save" }
-            }
+#[derive(Debug, PartialEq, Eq, Hash)]
+enum PasswordFormatError {
+    NotAscii,
+    TooShort,
+    TooLong,
+    NoUpper,
+    NoLower,
+    NoNumeric,
+}
+
+impl Display for PasswordFormatError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PasswordFormatError::NotAscii => write!(f, "not valid ascii"),
+            PasswordFormatError::TooShort => write!(f, "too short"),
+            PasswordFormatError::TooLong => write!(f, "too long"),
+            PasswordFormatError::NoUpper => write!(f, "no upper-case"),
+            PasswordFormatError::NoLower => write!(f, "no lower-case"),
+            PasswordFormatError::NoNumeric => write!(f, "no number"),
         }
-    };
-    layout(content, msgs)
+    }
+}
+
+struct PasswordErrors {
+    errors: HashSet<PasswordFormatError>,
+}
+
+impl Display for PasswordErrors {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut iter = self.errors.iter();
+        let first = if let Some(e) = iter.next() {
+            e
+        } else {
+            return write!(f, "✔️");
+        };
+        for e in iter {
+            write!(f, "{e}, ")?;
+        }
+        write!(f, "{}", first)
+    }
+}
+
+#[derive(Deserialize, Debug)]
+struct PasswordQuery {
+    password: Box<str>,
+}
+
+impl PasswordQuery {
+    const MIN: u8 = 6;
+    const MAX: u8 = 64;
+    fn validate(&self) -> Result<(), PasswordErrors> {
+        let mut errors: HashSet<PasswordFormatError> = HashSet::new();
+
+        if !self.password.is_ascii() {
+            errors.insert(PasswordFormatError::NotAscii);
+        }
+
+        if (self.password.len() as u8) < Self::MIN {
+            errors.insert(PasswordFormatError::TooShort);
+        }
+        if (self.password.len() as u8) > Self::MAX {
+            errors.insert(PasswordFormatError::TooLong);
+        }
+        if !self.password.contains(|c: char| c.is_lowercase()) {
+            errors.insert(PasswordFormatError::NoLower);
+        }
+        if !self.password.contains(|c: char| c.is_uppercase()) {
+            errors.insert(PasswordFormatError::NoUpper);
+        }
+        if !self.password.contains(|c: char| c.is_numeric()) {
+            errors.insert(PasswordFormatError::NoNumeric);
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(PasswordErrors { errors })
+        }
+    }
+}
+
+async fn validate_password_api(Query(q): Query<PasswordQuery>) -> Markup {
+    let feedback = q.validate();
+    html! {
+        @match feedback{
+            Ok(_) => span {"✔️"},
+            Err(e) => span.alert.alert-danger role="alert" {(e)},
+        }
+    }
 }
 
 async fn get_new_user(flashes: IncomingFlashes) -> (IncomingFlashes, Markup) {
-    let body = new_user_template(flashes.iter(), None);
+    let body = new_user_template(flashes.iter(), None, None);
     (flashes, body)
 }
 
@@ -97,7 +142,6 @@ struct NewUserInput {
     email: String,
 }
 
-#[axum::debug_handler]
 async fn post_new_user(
     State(state): State<AppState>,
     // _flash: Flash,
@@ -107,8 +151,8 @@ async fn post_new_user(
         Level::Debug,
         format!("Not yet implemtented: anyways got input:{:#?}", input),
     );
-    let feedback = validate_email(&state.db, EmailQuery::new(input.email));
-    new_user_template(Some(msg), Some("TODO!"))
+    let feedback = validate_email(EmailQuery::new(input.email), &state.db);
+    new_user_template(Some(msg), Some("TODO!"), Some("TODO"))
 }
 
 #[derive(Debug, Default, Clone, sqlx::FromRow)]
@@ -168,6 +212,7 @@ pub fn make_auth(app: &AppState) -> Router<AppState> {
         .route("/new", post(post_new_user))
         .route("/new", get(get_new_user))
         .route("/email/validate", get(email_validation))
+        .route("/password/validate", get(validate_password_api))
         .route("/logout", get(logout_handler))
         .route("/login", get(login_handler))
         .layer(auth_layer)
