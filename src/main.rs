@@ -82,7 +82,7 @@ async fn post_new(
     flash: Flash,
     Form(input): Form<Input>,
 ) -> impl IntoResponse {
-    let feedback = match validate_email(&state.db, EmailQuery::new(input.email.clone())).await {
+    let feedback = match validate_email(EmailQuery::new(input.email.clone()), &state.db).await {
         Ok(feedback) => feedback,
         Err(e) => {
             error!("db error: {}", e);
@@ -280,7 +280,7 @@ async fn handler_404() -> impl IntoResponse {
 }
 
 async fn email_validation(State(state): State<AppState>, Query(q): Query<EmailQuery>) -> Markup {
-    let db_res = validate_email(&state.db, q).await;
+    let db_res = validate_email(q, &state.db).await;
     match db_res {
         Ok(email_feedback) => email_feedback.into(),
         Err(db_error) => {

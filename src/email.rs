@@ -79,7 +79,7 @@ impl From<EmailFeedBack> for Markup {
 }
 
 /// check if email string is formated proparly and if occupied
-pub async fn validate_email(db: &DB, q: EmailQuery) -> sqlx::Result<EmailFeedBack> {
+pub async fn validate_email(q: EmailQuery, db: &DB) -> sqlx::Result<EmailFeedBack> {
     let email_res = EmailAddress::from_str(&q.email);
     if let Err(e) = email_res {
         return Ok(EmailFeedBack::err(EmailError::FormatError(e)));
