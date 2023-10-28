@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fmt::Display};
+use std::fmt::Display;
 
 use axum::{
     extract::{Query, State},
@@ -6,14 +6,14 @@ use axum::{
     routing::{get, post},
     Extension, Form, Router,
 };
-use axum_flash::{Flash, IncomingFlashes, Level};
+use axum_flash::{IncomingFlashes, Level};
 use axum_login::{
     axum_sessions::{async_session::MemoryStore, SessionLayer},
     secrecy::SecretVec,
     AuthLayer, AuthUser, MySqlStore, RequireAuthorizationLayer,
 };
 use log::error;
-use maud::{html, PreEscaped};
+use maud::html;
 use serde::Deserialize;
 // use html_macro::html;
 
@@ -25,9 +25,7 @@ use crate::{
 };
 
 use self::templates::new_user_template;
-use crate::templates::layout;
 use crate::templates::Markup;
-use crate::templates::MsgIterable;
 
 async fn email_validation(State(state): State<AppState>, Query(q): Query<EmailQuery>) -> Markup {
     let db_res = validate_user_email(&state.db, q).await;
@@ -42,7 +40,7 @@ async fn email_validation(State(state): State<AppState>, Query(q): Query<EmailQu
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 enum PasswordFormatError {
-    NotAscii,
+    NotAscii(char),
     TooShort,
     TooLong,
     NoUpper,
@@ -50,35 +48,18 @@ enum PasswordFormatError {
     NoNumeric,
 }
 
+// const SPECIAL_CHARS: &str = " !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
+
 impl Display for PasswordFormatError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PasswordFormatError::NotAscii => write!(f, "not valid ascii"),
-            PasswordFormatError::TooShort => write!(f, "too short"),
-            PasswordFormatError::TooLong => write!(f, "too long"),
-            PasswordFormatError::NoUpper => write!(f, "no upper-case"),
-            PasswordFormatError::NoLower => write!(f, "no lower-case"),
-            PasswordFormatError::NoNumeric => write!(f, "no number"),
+            PasswordFormatError::NotAscii(c) => write!(f, "Forbidden: {}", c),
+            PasswordFormatError::TooShort => write!(f, "Too short"),
+            PasswordFormatError::TooLong => write!(f, "Too long"),
+            PasswordFormatError::NoUpper => write!(f, "No upper-case"),
+            PasswordFormatError::NoLower => write!(f, "No lower-case"),
+            PasswordFormatError::NoNumeric => write!(f, "No number"),
         }
-    }
-}
-
-struct PasswordErrors {
-    errors: HashSet<PasswordFormatError>,
-}
-
-impl Display for PasswordErrors {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut iter = self.errors.iter();
-        let first = if let Some(e) = iter.next() {
-            e
-        } else {
-            return write!(f, "✔️");
-        };
-        for e in iter {
-            write!(f, "{e}, ")?;
-        }
-        write!(f, "{}", first)
     }
 }
 
@@ -90,44 +71,43 @@ struct PasswordQuery {
 impl PasswordQuery {
     const MIN: u8 = 6;
     const MAX: u8 = 64;
-    fn validate(&self) -> Result<(), PasswordErrors> {
-        let mut errors: HashSet<PasswordFormatError> = HashSet::new();
 
-        if !self.password.is_ascii() {
-            errors.insert(PasswordFormatError::NotAscii);
-        }
+    fn validate(&self) -> Result<(), PasswordFormatError> {
+        use PasswordFormatError as Error;
+
+        if let Some(c) = self.password.chars().find(|c| !c.is_ascii()) {
+            return Err(Error::NotAscii(c));
+        };
 
         if (self.password.len() as u8) < Self::MIN {
-            errors.insert(PasswordFormatError::TooShort);
+            return Err(Error::TooShort);
         }
         if (self.password.len() as u8) > Self::MAX {
-            errors.insert(PasswordFormatError::TooLong);
+            return Err(Error::TooLong);
         }
         if !self.password.contains(|c: char| c.is_lowercase()) {
-            errors.insert(PasswordFormatError::NoLower);
+            return Err(Error::NoLower);
         }
         if !self.password.contains(|c: char| c.is_uppercase()) {
-            errors.insert(PasswordFormatError::NoUpper);
+            return Err(Error::NoUpper);
         }
         if !self.password.contains(|c: char| c.is_numeric()) {
-            errors.insert(PasswordFormatError::NoNumeric);
+            return Err(Error::NoNumeric);
         }
-        if errors.is_empty() {
-            Ok(())
-        } else {
-            Err(PasswordErrors { errors })
+        Ok(())
+    }
+    fn get_feedback(&self) -> Markup {
+        html! {
+            @match self.validate(){
+                Ok(_) => span {"✔️"},
+                Err(e) => span.alert.alert-danger role="alert" {(e)},
+            }
         }
     }
 }
 
-async fn validate_password_api(Query(q): Query<PasswordQuery>) -> Markup {
-    let feedback = q.validate();
-    html! {
-        @match feedback{
-            Ok(_) => span {"✔️"},
-            Err(e) => span.alert.alert-danger role="alert" {(e)},
-        }
-    }
+async fn validate_password_query(Query(q): Query<PasswordQuery>) -> Markup {
+    q.get_feedback()
 }
 
 async fn get_new_user(flashes: IncomingFlashes) -> (IncomingFlashes, Markup) {
@@ -212,7 +192,7 @@ pub fn make_auth(app: &AppState) -> Router<AppState> {
         .route("/new", post(post_new_user))
         .route("/new", get(get_new_user))
         .route("/email/validate", get(email_validation))
-        .route("/password/validate", get(validate_password_api))
+        .route("/password/validate", get(validate_password_query))
         .route("/logout", get(logout_handler))
         .route("/login", get(login_handler))
         .layer(auth_layer)
