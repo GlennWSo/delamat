@@ -144,19 +144,45 @@ struct NewUserInput {
     password: String,
     email: String,
 }
+
+struct ValidNewUser(NewUserInput);
+
 impl NewUserInput {
+    async fn validate(self, db: &DB) -> Result<ValidNewUser, NewUserError> {
+        use NewUserError as E;
+
+        let feedback = validate_user_email(db, &self.email, None).await;
+        match feedback {
+            Ok(v) => match v.0 {
+                Ok(_) => (),
+                Err(e) => return Err(E::EmailError(e)),
+            },
+            Err(e) => return Err(E::DBError(e)),
+        };
+
+        let q: PasswordQuery = self.password.as_str().into();
+        match q.validate() {
+            Ok(_) => (),
+            Err(e) => return Err(E::PasswordError(e)),
+        };
+
+        Ok(ValidNewUser(self))
+    }
+}
+impl ValidNewUser {
     async fn insert(self, db: &DB) -> sqlx::Result<MySqlQueryResult> {
         let salt = "badsalt";
         let hash = "badhash";
+        let inner = self.0;
         sqlx::query!(
             "
-            insert into users (password_hash, name, email, salt)
+            insert into users (name, email, salt, password_hash)
             values (?, ?, ?, ?)
             ",
+            inner.name,
+            inner.email,
+            salt,
             hash,
-            self.name,
-            self.email,
-            salt
         )
         .execute(db.conn())
         .await
@@ -178,29 +204,6 @@ impl Display for NewUserError {
     }
 }
 
-impl NewUserInput {
-    async fn validate(&self, db: &DB) -> Result<(), NewUserError> {
-        use NewUserError as E;
-
-        let feedback = validate_user_email(db, &self.email, None).await;
-        match feedback {
-            Ok(v) => match v.0 {
-                Ok(_) => (),
-                Err(e) => return Err(E::EmailError(e)),
-            },
-            Err(e) => return Err(E::DBError(e)),
-        };
-
-        let q: PasswordQuery = self.password.as_str().into();
-        match q.validate() {
-            Ok(_) => (),
-            Err(e) => return Err(E::PasswordError(e)),
-        };
-
-        Ok(())
-    }
-}
-
 async fn post_new_user(
     State(state): State<AppState>,
     flash: Flash,
@@ -208,14 +211,16 @@ async fn post_new_user(
 ) -> impl IntoResponse {
     use NewUserError as E;
     match input.validate(&state.db).await {
-        Ok(_) => {
-            let res = input.insert(&state.db).await;
+        Ok(valid_input) => {
+            let res = valid_input.insert(&state.db).await;
             match res {
                 Ok(v) => {
                     log::info!("created new user, details: {:#?}", v);
                     (flash.success("created new user"), Redirect::to("/user/new")).into_response()
                 }
-                Err(e) => new_template([(Level::Debug, dbg!(e))], None, None).into_response(),
+                Err(db_error) => {
+                    new_template([(Level::Debug, dbg!(db_error))], None, None).into_response()
+                }
             }
         }
         Err(e) => match e {
