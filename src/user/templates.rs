@@ -3,10 +3,10 @@ use std::fmt::Display;
 
 use crate::templates::{layout, MsgIterable};
 
-pub fn new_user_template<T: Display>(
+pub fn new_template<T: Display>(
     msgs: impl MsgIterable<T>,
-    email_feedback: Option<&str>,
-    password_feedback: Option<&str>,
+    email_feedback: Option<T>,
+    password_feedback: Option<T>,
 ) -> Markup {
     let content = html! {
         h2 {"Create a Account"}
@@ -46,7 +46,7 @@ pub fn new_user_template<T: Display>(
     };
     layout(content, msgs)
 }
-fn email_input(init_value: &str, validation_url: &str, error_msg: Option<&str>) -> Markup {
+fn email_input<T: Display>(init_value: &str, validation_url: &str, error_msg: Option<T>) -> Markup {
     html! {
                         input #email
                             name="email"
@@ -69,7 +69,7 @@ fn email_input(init_value: &str, validation_url: &str, error_msg: Option<&str>) 
 
     }
 }
-fn password_input(error_msg: Option<&str>) -> Markup {
+fn password_input<T: Display>(error_msg: Option<T>) -> Markup {
     html! {
                         input #password
                             name="password"
