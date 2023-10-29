@@ -1,5 +1,12 @@
 use std::fmt::Display;
 
+use argon2::{
+    password_hash::{
+        rand_core::{OsRng, RngCore},
+        SaltString,
+    },
+    Argon2, PasswordHasher,
+};
 use axum::{
     extract::{Query, State},
     response::{IntoResponse, Redirect},
@@ -12,17 +19,16 @@ use axum_login::{
     secrecy::SecretVec,
     AuthLayer, AuthUser, MySqlStore, RequireAuthorizationLayer,
 };
-use log::{error, log};
+use log::error;
 use maud::html;
 use serde::Deserialize;
 use sqlx::mysql::MySqlQueryResult;
-// use html_macro::html;
 
 mod templates;
 
 use crate::{
     db::DB,
-    email::{validate_email, validate_user_email, EmailError, EmailFeedBack, EmailQuery},
+    email::{validate_user_email, EmailError, EmailQuery},
     AppState,
 };
 
@@ -169,19 +175,29 @@ impl NewUserInput {
         Ok(ValidNewUser(self))
     }
 }
+
+/// number of bytes(u8) used for storing salts
+const SALT_LENGTH: usize = 16;
+
 impl ValidNewUser {
     async fn insert(self, db: &DB) -> sqlx::Result<MySqlQueryResult> {
-        let salt = "badsalt";
-        let hash = "badhash";
-        let inner = self.0;
+        let mut salt_bytes = [0u8; SALT_LENGTH];
+        OsRng.fill_bytes(&mut salt_bytes);
+        let salt = SaltString::encode_b64(&salt_bytes).expect("salt string invariant violated");
+        let input = self.0;
+        let argon2 = Argon2::default();
+        let hash = argon2
+            .hash_password(input.password.as_bytes(), &salt)
+            .unwrap() // TODO remove unwrap
+            .to_string();
         sqlx::query!(
             "
             insert into users (name, email, salt, password_hash)
             values (?, ?, ?, ?)
             ",
-            inner.name,
-            inner.email,
-            salt,
+            input.name,
+            input.email,
+            &salt_bytes[..],
             hash,
         )
         .execute(db.conn())
@@ -231,6 +247,7 @@ async fn post_new_user(
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Default, Clone, sqlx::FromRow)]
 struct User {
     id: i32,
