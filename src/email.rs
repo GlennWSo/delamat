@@ -8,8 +8,8 @@ use crate::db::DB;
 
 #[derive(Deserialize)]
 pub struct EmailQuery {
-    email: String,
-    id: Option<u32>,
+    pub email: String,
+    pub id: Option<u32>,
 }
 
 impl EmailQuery {
@@ -45,11 +45,13 @@ impl Display for IsNew {
     }
 }
 #[derive(Debug)]
-pub struct EmailFeedBack(pub Result<IsNew, EmailError>);
+pub struct EmailFeedBack(pub Result<(), EmailError>);
+// #[derive(Debug)]
+// pub struct EmailFeedBack(pub Result<IsNew, EmailError>);
 
 impl EmailFeedBack {
     fn ok(new: bool) -> Self {
-        Self(Ok(IsNew(new)))
+        Self(Ok(()))
     }
     fn err(e: EmailError) -> Self {
         Self(Err(e))
@@ -60,14 +62,14 @@ impl EmailFeedBack {
 }
 impl Default for EmailFeedBack {
     fn default() -> Self {
-        Self(Ok(IsNew(false)))
+        Self(Ok(()))
     }
 }
 
 impl From<EmailFeedBack> for Markup {
     fn from(EmailFeedBack(res): EmailFeedBack) -> Self {
         match res {
-            Ok(new) => html! { span {(new)}},
+            Ok(_new) => html! { span {} },
 
             Err(e) => html! {
                 span.alert.alert-danger.inline-err role="alert" {
@@ -93,14 +95,18 @@ pub async fn validate_email(q: EmailQuery, db: &DB) -> sqlx::Result<EmailFeedBac
     }
 }
 /// check if email string is formated proparly and if occupied
-pub async fn validate_user_email(db: &DB, q: EmailQuery) -> sqlx::Result<EmailFeedBack> {
-    let email_res = EmailAddress::from_str(&q.email);
+pub async fn validate_user_email(
+    db: &DB,
+    email: &str,
+    user_id: Option<u32>,
+) -> sqlx::Result<EmailFeedBack> {
+    let email_res = EmailAddress::from_str(email);
     if let Err(e) = email_res {
         return Ok(EmailFeedBack::err(EmailError::FormatError(e)));
     };
-    match db.find_user_email(&q.email).await? {
+    match db.find_user_email(email).await? {
         None => Ok(EmailFeedBack::ok(true)),
-        Some(old_id) => match q.id {
+        Some(old_id) => match user_id {
             Some(query_id) if query_id as i32 == old_id => Ok(EmailFeedBack::ok(true)),
             _ => Ok(EmailFeedBack::err(EmailError::Occupied)),
         },
