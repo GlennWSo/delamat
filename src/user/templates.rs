@@ -3,10 +3,13 @@ use std::fmt::Display;
 
 use crate::templates::{layout, MsgIterable};
 
+use super::NewUserInput;
+
 pub fn new_template<T: Display>(
     msgs: impl MsgIterable<T>,
     email_feedback: Option<T>,
     password_feedback: Option<T>,
+    input: NewUserInput,
 ) -> Markup {
     let content = html! {
         h2 {"Create a Account"}
@@ -14,15 +17,15 @@ pub fn new_template<T: Display>(
             fieldset {
                 p {
                     label for="name" { "Name" }
-                    input #name name="name" type="text" placeholder="your alias";
+                    input #name name="name" type="text" placeholder="your alias" value=(input.name);
                 }
                 p {
                     label for="email" { "email" }
-                    (email_input("", "./email/validate", email_feedback))
+                    (email_input(&input.email, "./email/validate", email_feedback))
                 }
                 p {
                     label for="password" { "Password" }
-                    (password_input(password_feedback))
+                    (password_input(&input.password, password_feedback))
                 }
                 p {
                     label for="confirm-password" { "Confirm Password" }
@@ -59,7 +62,7 @@ fn email_input<T: Display>(init_value: &str, validation_url: &str, error_msg: Op
                             hx-target="next span"
                             hx-swap="outerHTML";
                         @if let Some(e) = error_msg {
-                            span.alert.alert-danger role="alert" {
+                            span.alert.alert-danger.inline-err role="alert" {
                                 (e)
                             }
                         }
@@ -69,11 +72,12 @@ fn email_input<T: Display>(init_value: &str, validation_url: &str, error_msg: Op
 
     }
 }
-fn password_input<T: Display>(error_msg: Option<T>) -> Markup {
+fn password_input<T: Display>(init_value: &str, error_msg: Option<T>) -> Markup {
     html! {
                         input #password
                             name="password"
                             type="password"
+                            value=(init_value)
                             hx-get="./password/validate"
                             hx-params="*"
                             hx-trigger="change, keyup delay:350ms changed"

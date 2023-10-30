@@ -140,11 +140,11 @@ async fn validate_password_query(Query(q): Query<PasswordQuery>) -> Markup {
 }
 
 async fn get_new_user(flashes: IncomingFlashes) -> (IncomingFlashes, Markup) {
-    let body = new_template(flashes.iter(), None, None);
+    let body = new_template(flashes.iter(), None, None, NewUserInput::default());
     (flashes, body)
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Default)]
 struct NewUserInput {
     name: String,
     password: String,
@@ -154,22 +154,22 @@ struct NewUserInput {
 struct ValidNewUser(NewUserInput);
 
 impl NewUserInput {
-    async fn validate(self, db: &DB) -> Result<ValidNewUser, NewUserError> {
+    async fn validate(self, db: &DB) -> Result<ValidNewUser, (Self, NewUserError)> {
         use NewUserError as E;
 
         let feedback = validate_user_email(db, &self.email, None).await;
         match feedback {
             Ok(v) => match v.0 {
                 Ok(_) => (),
-                Err(e) => return Err(E::EmailError(e)),
+                Err(e) => return Err((self, E::EmailError(e))),
             },
-            Err(e) => return Err(E::DBError(e)),
+            Err(e) => return Err((self, E::DBError(e))),
         };
 
         let q: PasswordQuery = self.password.as_str().into();
         match q.validate() {
             Ok(_) => (),
-            Err(e) => return Err(E::PasswordError(e)),
+            Err(e) => return Err((self, E::PasswordError(e))),
         };
 
         Ok(ValidNewUser(self))
@@ -180,17 +180,21 @@ impl NewUserInput {
 const SALT_LENGTH: usize = 16;
 
 impl ValidNewUser {
-    async fn insert(self, db: &DB) -> sqlx::Result<MySqlQueryResult> {
+    fn demote(self) -> NewUserInput {
+        self.0
+    }
+    async fn insert(self, db: &DB) -> Result<MySqlQueryResult, (NewUserInput, sqlx::Error)> {
         let mut salt_bytes = [0u8; SALT_LENGTH];
         OsRng.fill_bytes(&mut salt_bytes);
         let salt = SaltString::encode_b64(&salt_bytes).expect("salt string invariant violated");
-        let input = self.0;
+        let input = &self.0;
         let argon2 = Argon2::default();
         let hash = argon2
             .hash_password(input.password.as_bytes(), &salt)
             .unwrap() // TODO remove unwrap
             .to_string();
-        sqlx::query!(
+
+        let res = sqlx::query!(
             "
             insert into users (name, email, salt, password_hash)
             values (?, ?, ?, ?)
@@ -201,7 +205,11 @@ impl ValidNewUser {
             hash,
         )
         .execute(db.conn())
-        .await
+        .await;
+        match res {
+            Ok(v) => Ok(v),
+            Err(e) => Err((self.demote(), e)),
+        }
     }
 }
 
@@ -234,15 +242,18 @@ async fn post_new_user(
                     log::info!("created new user, details: {:#?}", v);
                     (flash.success("created new user"), Redirect::to("/user/new")).into_response()
                 }
-                Err(db_error) => {
-                    new_template([(Level::Debug, dbg!(db_error))], None, None).into_response()
+                Err((input, db_error)) => {
+                    new_template([(Level::Error, dbg!(db_error))], None, None, input)
+                        .into_response()
                 }
             }
         }
-        Err(e) => match e {
-            E::PasswordError(e) => new_template(None, None, Some(e)).into_response(),
-            E::EmailError(e) => new_template(None, Some(e), None).into_response(),
-            E::DBError(e) => new_template([(Level::Debug, dbg!(e))], None, None).into_response(),
+        Err((bad_input, e)) => match e {
+            E::PasswordError(e) => new_template(None, None, Some(e), bad_input).into_response(),
+            E::EmailError(e) => new_template(None, Some(e), None, bad_input).into_response(),
+            E::DBError(e) => {
+                new_template([(Level::Debug, dbg!(e))], None, None, bad_input).into_response()
+            }
         },
     }
 }
