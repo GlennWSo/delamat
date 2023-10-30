@@ -69,12 +69,16 @@ impl Default for EmailFeedBack {
 impl From<EmailFeedBack> for Markup {
     fn from(EmailFeedBack(res): EmailFeedBack) -> Self {
         match res {
-            Ok(_new) => html! { span {"✅"} },
+            Ok(_new) => html! {
+                span _="
+                    on load send email(ok:true) to next <button/>"
+                {"✅"}
+            },
 
             Err(e) => html! {
-                span.alert.alert-danger.inline-err role="alert" {
-                    (e)
-                }
+                span.alert.alert-danger.inline-err role="alert" _="
+                    on load send email(ok:false) to next <button/>"
+                {(e)}
             },
         }
     }

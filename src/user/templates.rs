@@ -31,19 +31,47 @@ pub fn new_template<T: Display>(
                     label for="confirm-password" { "Confirm Password" }
                     input #confirm-password type="password" _="
                         on newpass or change or keyup debounced at 350ms  
-                        if my value equals #password.value 
+                        if my value equals #password.value and my value is not ''
                             remove @hidden from #repeat-ok
-                            add @hidden to #repeat-nok
-                        else if my value is not ''
-                            add @hidden to #repeat-ok
-                            remove @hidden from #repeat-nok"
+                            then add @hidden to #repeat-nok
+                            then send confirm(ok: true) to next <button/>
+                        else if my.value is not ''
+                            then add @hidden to #repeat-ok
+                            then remove @hidden from #repeat-nok
+                            then send confirm(ok: false) to next <button/>
+                        else
+                            send confirm(ok: false) to next <button/>
+                    "
                     ;
                     span #repeat-ok hidden {"✅"}
                     span.alert.alert-danger.inline-err hidden #repeat-nok role="alert" {
                         "Passwords do not match."
                     }
                 }
-                button { "save" }
+                button disabled _="
+                    on load set :feedback to {password: false, email: false, confirm: false}
+                        then add @disabled on me
+                    end
+                    
+                    def update_me()
+                        if :feedback.password and :feedback.email and :feedback.confirm
+                            remove @disabled
+                        else
+                            add @disabled
+                    end
+                
+                    on password(ok) 
+                        set :feedback.password to ok then update_me()
+                    end
+                    on email(ok) 
+                        set :feedback.email to ok then update_me()
+                    end
+                    on confirm(ok) 
+                        set :feedback.confirm to ok then update_me()
+                    end
+                    "
+                    { "save" }
+
             }
         }
     };

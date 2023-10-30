@@ -23,7 +23,7 @@ use learn_htmx::{
     // auth::User,
     db::{Contact, DB},
     email::{validate_email, EmailQuery},
-    templates,
+    templates::{self, layout},
     user::make_auth,
     AppState,
 };
@@ -290,6 +290,18 @@ async fn email_validation(State(state): State<AppState>, Query(q): Query<EmailQu
     }
 }
 
+async fn hyper_play() -> Markup {
+    let content = html! {
+        div _="on load set :x to 2" {
+            button _="on click <output/>"{}
+            output {}
+
+        }
+    };
+    let msgs: Option<(_, &str)> = None;
+    layout(content, msgs)
+}
+
 #[tokio::main]
 async fn main() {
     let db = DB::new(8).await;
@@ -299,6 +311,7 @@ async fn main() {
     let app = Router::new()
         .nest("/user", auth)
         .route("/", get(index))
+        .route("/play", get(hyper_play))
         .route("/contacts", get(home))
         .route("/contacts/download", get(download_archive))
         .route("/contacts/new", get(get_new))
