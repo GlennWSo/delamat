@@ -69,7 +69,7 @@ impl Default for EmailFeedBack {
 impl From<EmailFeedBack> for Markup {
     fn from(EmailFeedBack(res): EmailFeedBack) -> Self {
         match res {
-            Ok(_new) => html! { span {} },
+            Ok(_new) => html! { span {"✅"} },
 
             Err(e) => html! {
                 span.alert.alert-danger.inline-err role="alert" {

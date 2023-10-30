@@ -128,8 +128,8 @@ impl PasswordQuery {
     fn get_feedback(&self) -> Markup {
         html! {
             @match self.validate(){
-                Ok(_) => span {"✔️"},
-                Err(e) => span.alert.alert-danger role="alert" {(e)},
+                Ok(_) => span #password-feedback.ok  {"✅"},
+                Err(e) => span #password-feedback.alert.alert-danger role="alert" {(e)},
             }
         }
     }
