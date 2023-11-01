@@ -1,6 +1,6 @@
 pub mod contact;
 mod core;
 
-pub use core::{layout, MsgIterable};
+pub use core::{flashy_flash, layout, MsgIterable};
 
 pub use maud::Markup;

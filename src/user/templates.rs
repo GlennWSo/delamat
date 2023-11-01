@@ -13,7 +13,7 @@ pub fn new_template<T: Display>(
 ) -> Markup {
     let content = html! {
         h2 {"Create a Account"}
-        form action="new" method="post" {
+        form hx-post="/user/new" hx-target="closest <body/>" "hx-target-500"="#flashes" {
             fieldset {
                 p {
                     label for="name" { "Name" }

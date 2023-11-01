@@ -13,10 +13,12 @@ pub fn layout<T: Display>(content: Markup, msgs: impl MsgIterable<T>) -> Markup 
         (DOCTYPE)
         html lang="en" {
             (head("Contacts"))
-            body{
+            body hx-ext="response-targets"{
                 h1 {"Contact App"}
                 h2 {"A HTMX Demo"}
-                (flashy_flash(msgs.into_iter()))
+                div #flashes {
+                    (flashy_flash(msgs.into_iter()))
+                }
                 hr;
                 (content)
                 script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
@@ -40,6 +42,7 @@ fn head(title: &str) -> Markup {
                 src="https://unpkg.com/htmx.org@1.9.5"
                 integrity="sha384-xcuj3WpfgjlKF+FXhSQFQ0ZNr39ln+hwjN3npfM9VBnUskLolQAcN80McRIVOPuO"
                 crossorigin="anonymous"{}
+            script src="https://unpkg.com/htmx.org@1.9.3/dist/ext/response-targets.js" {}
             script src="https://unpkg.com/hyperscript.org@0.9.12" {}
             style {
                 "body {padding-left: 1em}"
@@ -51,7 +54,7 @@ fn head(title: &str) -> Markup {
     }
 }
 
-fn flashy_flash<T: Display>(msgs: impl MsgIterable<T>) -> Markup {
+pub fn flashy_flash<T: Display>(msgs: impl MsgIterable<T>) -> Markup {
     html! {
         @for (lvl, msg) in msgs{
             @match lvl {

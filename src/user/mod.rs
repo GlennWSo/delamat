@@ -9,6 +9,7 @@ use argon2::{
 };
 use axum::{
     extract::{Query, State},
+    http::StatusCode,
     response::{IntoResponse, Redirect},
     routing::{get, post},
     Extension, Form, Router,
@@ -29,6 +30,7 @@ mod templates;
 use crate::{
     db::DB,
     email::{validate_user_email, EmailError, EmailQuery},
+    templates::flashy_flash,
     AppState,
 };
 
@@ -247,8 +249,10 @@ async fn post_new_user(
                     (flash.success("created new user"), Redirect::to("/user/new")).into_response()
                 }
                 Err((input, db_error)) => {
-                    new_template([(Level::Error, dbg!(db_error))], None, None, input)
-                        .into_response()
+                    // new_template([(Level::Error, dbg!(db_error))], None, None, input)
+                    //     .into_response()
+                    let content = flashy_flash([(Level::Error, dbg!(db_error))]);
+                    (StatusCode::INTERNAL_SERVER_ERROR, content).into_response()
                 }
             }
         }
