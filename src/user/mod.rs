@@ -37,13 +37,23 @@ use crate::{
 use self::templates::{invalid_name_input, new_template, valid_name_input};
 use crate::templates::Markup;
 
-async fn email_validation(State(state): State<AppState>, Query(q): Query<EmailQuery>) -> Markup {
+async fn email_validation(
+    State(state): State<AppState>,
+    Query(q): Query<EmailQuery>,
+) -> impl IntoResponse {
     let db_res = validate_user_email(&state.db, &q.email, q.id).await;
     match db_res {
-        Ok(email_feedback) => email_feedback.into(),
+        Ok(email_feedback) => {
+            let content: Markup = email_feedback.into();
+            content.into_response()
+        }
         Err(db_error) => {
             error!("{}", db_error);
-            html! { span { "Internal Error" }}
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                html! { span { "Internal Error" }},
+            )
+                .into_response()
         }
     }
 }
@@ -133,7 +143,7 @@ impl PasswordQuery {
                 Ok(_) => span #password-feedback.ok  _="
                     on load send password(ok:true) to next <button/>"
                     {"✅"},
-                Err(e) => span #password-feedback.alert.alert-danger role="alert" _="
+                Err(e) => span #password-feedback.alert.alert-danger.inline-err role="alert" _="
                     on load send password(ok:false) to next <button/>"
                     {(e)},
             }

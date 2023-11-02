@@ -143,7 +143,7 @@ pub fn invalid_name_input<E: Display>(value: &str, error: E) -> Markup {
                 hx-post="./name/validate"
                 hx-params="*"
                 hx-trigger="change, keyup delay:350ms changed"{}
-            span.alert.alert-danger role="alert" {
+            span.alert.alert-danger.inline-err role="alert" {
                 (error)
             }
         }
@@ -165,7 +165,7 @@ fn password_input<T: Display>(init_value: &str, error_msg: Option<T>) -> Markup 
             _="on change or keyup debounced at 350ms
                 send newpass to #confirm-password";
         @if let Some(e) = error_msg {
-            span.alert.alert-danger role="alert" {
+            span.alert.alert-danger.inline-err role="alert" {
                 (e)
             }
         }
