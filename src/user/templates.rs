@@ -15,19 +15,19 @@ pub fn new_template<T: Display>(
         h2 {"Create a Account"}
         form hx-post="/user/new" hx-target="closest <body/>" "hx-target-500"="#flashes" {
             fieldset {
-                p {
+                div {
                     label for="name" { "Name" }
                     input #name name="name" type="text" placeholder="your alias" value=(input.name);
                 }
-                p {
+                div {
                     label for="email" { "email" }
                     (email_input(&input.email, "./email/validate", email_feedback))
                 }
-                p {
+                div {
                     label for="password" { "Password" }
                     (password_input(&input.password, password_feedback))
                 }
-                p {
+                div {
                     label for="confirm-password" { "Confirm Password" }
                     input #confirm-password type="password" _="
                         on newpass or change or keyup debounced at 350ms  
