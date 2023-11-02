@@ -15,10 +15,7 @@ pub fn new_template<T: Display>(
         h2 {"Create a Account"}
         form hx-post="/user/new" hx-target="closest <body/>" "hx-target-500"="#flashes" {
             fieldset {
-                div {
-                    label for="name" { "Name" }
-                    input #name name="name" type="text" placeholder="your alias" value=(input.name);
-                }
+                (name_input())
                 div {
                     label for="email" { "email" }
                     (email_input(&input.email, "./email/validate", email_feedback))
@@ -100,27 +97,81 @@ fn email_input<T: Display>(init_value: &str, validation_url: &str, error_msg: Op
 
     }
 }
+
+fn name_input() -> Markup {
+    html! {
+        div.input_field hx-target="this" {
+            label for="name" { "Name" }
+            input #name
+                name="name"
+                type="text"
+                placeholder="Alias"
+                hx-post="./name/validate"
+                hx-params="*"
+                hx-trigger="change, keyup delay:350ms changed"{}
+        }
+
+    }
+}
+pub fn valid_name_input(value: &str) -> Markup {
+    html! {
+        div.input_field.valid hx-target="this" {
+            label for="name" { "Name" }
+            input #name
+                name="name"
+                type="text"
+                placeholder="Alias"
+                value=(value)
+                style="box-shadow: 0 0 3px #36cc00;"
+                hx-post="./name/validate"
+                hx-params="*"
+                hx-trigger="change, keyup delay:350ms changed"{}
+        }
+
+    }
+}
+pub fn invalid_name_input<E: Display>(value: &str, error: E) -> Markup {
+    html! {
+        div.input_field.valid hx-target="this" {
+            label for="name" { "Name" }
+            input #name
+                name="name"
+                type="text"
+                placeholder="Alias"
+                value=(value)
+                style="box-shadow: 0 0 3px #CC0000"
+                hx-post="./name/validate"
+                hx-params="*"
+                hx-trigger="change, keyup delay:350ms changed"{}
+            span.alert.alert-danger role="alert" {
+                (error)
+            }
+        }
+
+    }
+}
+
 fn password_input<T: Display>(init_value: &str, error_msg: Option<T>) -> Markup {
     html! {
-                        input #password
-                            name="password"
-                            type="password"
-                            value=(init_value)
-                            hx-get="./password/validate"
-                            hx-params="*"
-                            hx-trigger="change, keyup delay:350ms changed"
-                            hx-target="next span"
-                            hx-swap="outerHTML"
-                            _="on change or keyup debounced at 350ms
-                                send newpass to #confirm-password";
-                        @if let Some(e) = error_msg {
-                            span.alert.alert-danger role="alert" {
-                                (e)
-                            }
-                        }
-                        @else {
-                            span {}
-                        }
+        input #password
+            name="password"
+            type="password"
+            value=(init_value)
+            hx-get="./password/validate"
+            hx-params="*"
+            hx-trigger="change, keyup delay:350ms changed"
+            hx-target="next span"
+            hx-swap="outerHTML"
+            _="on change or keyup debounced at 350ms
+                send newpass to #confirm-password";
+        @if let Some(e) = error_msg {
+            span.alert.alert-danger role="alert" {
+                (e)
+            }
+        }
+        @else {
+            span {}
+        }
 
     }
 }

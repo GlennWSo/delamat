@@ -34,7 +34,7 @@ use crate::{
     AppState,
 };
 
-use self::templates::new_template;
+use self::templates::{invalid_name_input, new_template, valid_name_input};
 use crate::templates::Markup;
 
 async fn email_validation(State(state): State<AppState>, Query(q): Query<EmailQuery>) -> Markup {
@@ -50,7 +50,7 @@ async fn email_validation(State(state): State<AppState>, Query(q): Query<EmailQu
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 enum PasswordFormatError {
-    NotAscii(char),
+    InvalidChar(char),
     TooShort,
     TooLong,
     NoUpper,
@@ -63,7 +63,7 @@ const SPECIAL_CHARS: &str = " !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
 impl Display for PasswordFormatError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PasswordFormatError::NotAscii(c) => write!(f, "Forbidden: {}", c),
+            PasswordFormatError::InvalidChar(c) => write!(f, "Forbidden: {}", c),
             PasswordFormatError::TooShort => write!(f, "Too short"),
             PasswordFormatError::TooLong => write!(f, "Too long"),
             PasswordFormatError::NoUpper => write!(f, "No upper-case"),
@@ -107,7 +107,7 @@ impl PasswordQuery {
         use PasswordFormatError as Error;
 
         if let Some(c) = self.password.chars().find(|c| !Self::validate_char(c)) {
-            return Err(Error::NotAscii(c));
+            return Err(Error::InvalidChar(c));
         };
 
         if (self.password.len() as u8) < Self::MIN {
@@ -162,6 +162,13 @@ struct ValidNewUser(NewUserInput);
 impl NewUserInput {
     async fn validate(self, db: &DB) -> Result<ValidNewUser, (Self, NewUserError)> {
         use NewUserError as E;
+        let name = NameInput {
+            name: self.name.clone().into(),
+        };
+        match name.validate(db).await {
+            Ok(_) => (),
+            Err(e) => return Err((self, E::NameError(e.e))),
+        }
 
         let feedback = validate_user_email(db, &self.email, None).await;
         match feedback {
@@ -222,6 +229,7 @@ impl ValidNewUser {
 enum NewUserError {
     PasswordError(PasswordFormatError),
     EmailError(EmailError),
+    NameError(NameError),
     DBError(sqlx::Error),
 }
 impl Display for NewUserError {
@@ -230,8 +238,102 @@ impl Display for NewUserError {
             NewUserError::PasswordError(e) => write!(f, "{e}"),
             NewUserError::EmailError(e) => write!(f, "{e}"),
             NewUserError::DBError(e) => write!(f, "{e}"),
+            NewUserError::NameError(e) => write!(f, "{e}"),
         }
     }
+}
+
+#[derive(Deserialize)]
+struct NameInput {
+    name: Box<str>,
+}
+
+struct ValidName(NameInput);
+enum NameError {
+    TooShort,
+    TooLong,
+    InvalidChar(char),
+    Occupied,
+}
+impl Display for NameError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NameError::TooShort => write!(f, "name is too short"),
+            NameError::TooLong => write!(f, "name is too long"),
+            NameError::InvalidChar(c) => write!(f, "name has invalid char: {}", c),
+            NameError::Occupied => write!(f, "name is occupied"),
+        }
+    }
+}
+
+struct InvalidName {
+    input: NameInput,
+    e: NameError,
+}
+
+impl NameInput {
+    const MIN: u8 = 4;
+    const MAX: u8 = 32;
+    fn validate_char(c: &char) -> bool {
+        if c.is_alphabetic() {
+            return true;
+        }
+        if c.is_numeric() {
+            return true;
+        }
+        if "_-".contains([*c]) {
+            return true;
+        }
+        false
+    }
+    async fn find_user_id(&self, db: &DB) -> Option<i32> {
+        sqlx::query!("select id from users where name = ?", self.name.as_ref())
+            .fetch_optional(db.conn())
+            .await
+            .unwrap()
+            .map(|r| r.id)
+    }
+    async fn validate(self, db: &DB) -> Result<ValidName, InvalidName> {
+        use NameError as Error;
+
+        if let Some(c) = self.name.chars().find(|c| !Self::validate_char(c)) {
+            return Err(InvalidName {
+                input: self,
+                e: Error::InvalidChar(c),
+            });
+        };
+
+        if (self.name.len() as u8) < Self::MIN {
+            return Err(InvalidName {
+                input: self,
+                e: Error::TooShort,
+            });
+        }
+        if (self.name.len() as u8) > Self::MAX {
+            return Err(InvalidName {
+                input: self,
+                e: Error::TooLong,
+            });
+        }
+        if self.find_user_id(db).await.is_some() {
+            return Err(InvalidName {
+                input: self,
+                e: Error::Occupied,
+            });
+        }
+        Ok(ValidName(self))
+    }
+    async fn into_markup(self: NameInput, db: &DB) -> Markup {
+        let res = self.validate(db).await;
+        match res {
+            Ok(v) => valid_name_input(&v.0.name),
+            Err(err) => invalid_name_input(&err.input.name, err.e),
+        }
+    }
+}
+
+async fn validate_name(State(state): State<AppState>, Form(input): Form<NameInput>) -> Markup {
+    input.into_markup(&state.db).await
 }
 
 async fn post_new_user(
@@ -262,6 +364,8 @@ async fn post_new_user(
             E::DBError(e) => {
                 new_template([(Level::Debug, dbg!(e))], None, None, bad_input).into_response()
             }
+            _ => new_template([(Level::Debug, dbg!("unknown err"))], None, None, bad_input)
+                .into_response(),
         },
     }
 }
@@ -326,6 +430,7 @@ pub fn make_auth(app: &AppState) -> Router<AppState> {
         .route("/new", get(get_new_user))
         .route("/email/validate", get(email_validation))
         .route("/password/validate", get(validate_password_query))
+        .route("/name/validate", post(validate_name))
         .route("/logout", get(logout_handler))
         .route("/login", get(login_handler))
         .layer(auth_layer)
