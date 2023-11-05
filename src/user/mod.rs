@@ -30,11 +30,11 @@ mod templates;
 use crate::{
     db::DB,
     email::{validate_user_email, EmailError, EmailQuery},
-    templates::flashy_flash,
+    templates::dismissible_alerts,
     AppState,
 };
 
-use self::templates::{invalid_name_input, new_template, valid_name_input};
+use self::templates::{name_input, new_template, NameError, NameInputState};
 use crate::templates::Markup;
 
 async fn email_validation(
@@ -176,8 +176,8 @@ impl NewUserInput {
             name: self.name.clone().into(),
         };
         match name.validate(db).await {
-            Ok(_) => (),
-            Err(e) => return Err((self, E::NameError(e.e))),
+            NameInputState::Invalid { error, .. } => return Err((self, E::NameError(error))),
+            _ => (),
         }
 
         let feedback = validate_user_email(db, &self.email, None).await;
@@ -259,12 +259,6 @@ struct NameInput {
 }
 
 struct ValidName(NameInput);
-enum NameError {
-    TooShort,
-    TooLong,
-    InvalidChar(char),
-    Occupied,
-}
 impl Display for NameError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -272,6 +266,7 @@ impl Display for NameError {
             NameError::TooLong => write!(f, "name is too long"),
             NameError::InvalidChar(c) => write!(f, "name has invalid char: {}", c),
             NameError::Occupied => write!(f, "name is occupied"),
+            NameError::DBError(e) => write!(f, "Database failed with: {}", e),
         }
     }
 }
@@ -296,54 +291,61 @@ impl NameInput {
         }
         false
     }
-    async fn find_user_id(&self, db: &DB) -> Option<i32> {
-        sqlx::query!("select id from users where name = ?", self.name.as_ref())
-            .fetch_optional(db.conn())
-            .await
-            .unwrap()
-            .map(|r| r.id)
+    async fn find_user_id(&self, db: &DB) -> Result<Option<i32>, sqlx::Error> {
+        Ok(
+            sqlx::query!("select id from users where name = ?", self.name.as_ref())
+                .fetch_optional(db.conn())
+                .await?
+                .map(|r| r.id),
+        )
     }
-    async fn validate(self, db: &DB) -> Result<ValidName, InvalidName> {
+    async fn validate(self, db: &DB) -> NameInputState {
         use NameError as Error;
 
         if let Some(c) = self.name.chars().find(|c| !Self::validate_char(c)) {
-            return Err(InvalidName {
-                input: self,
-                e: Error::InvalidChar(c),
-            });
+            let e = Error::InvalidChar(c);
+            return NameInputState::Invalid {
+                value: self.name,
+                error: e,
+            };
         };
 
         if (self.name.len() as u8) < Self::MIN {
-            return Err(InvalidName {
-                input: self,
-                e: Error::TooShort,
-            });
+            let e = Error::TooShort;
+            return NameInputState::Invalid {
+                value: self.name,
+                error: e,
+            };
         }
         if (self.name.len() as u8) > Self::MAX {
-            return Err(InvalidName {
-                input: self,
-                e: Error::TooLong,
-            });
+            return NameInputState::Invalid {
+                value: self.name,
+                error: Error::TooLong,
+            };
         }
-        if self.find_user_id(db).await.is_some() {
-            return Err(InvalidName {
-                input: self,
-                e: Error::Occupied,
-            });
+        match self.find_user_id(db).await {
+            Ok(id) => {
+                if id.is_some() {
+                    return NameInputState::Invalid {
+                        value: self.name,
+                        error: Error::Occupied,
+                    };
+                }
+            }
+            Err(e) => {
+                return NameInputState::Invalid {
+                    value: self.name,
+                    error: Error::DBError(e),
+                }
+            }
         }
-        Ok(ValidName(self))
-    }
-    async fn into_markup(self: NameInput, db: &DB) -> Markup {
-        let res = self.validate(db).await;
-        match res {
-            Ok(v) => valid_name_input(&v.0.name),
-            Err(err) => invalid_name_input(&err.input.name, err.e),
-        }
+        NameInputState::Valid(self.name)
     }
 }
 
 async fn validate_name(State(state): State<AppState>, Form(input): Form<NameInput>) -> Markup {
-    input.into_markup(&state.db).await
+    let input_state = input.validate(&state.db).await;
+    name_input(input_state)
 }
 
 async fn post_new_user(
@@ -363,7 +365,7 @@ async fn post_new_user(
                 Err((input, db_error)) => {
                     // new_template([(Level::Error, dbg!(db_error))], None, None, input)
                     //     .into_response()
-                    let content = flashy_flash([(Level::Error, dbg!(db_error))]);
+                    let content = dismissible_alerts([(Level::Error, dbg!(db_error))]);
                     (StatusCode::INTERNAL_SERVER_ERROR, content).into_response()
                 }
             }

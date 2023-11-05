@@ -7,7 +7,6 @@ pub type Msg<T> = (Level, T);
 pub trait MsgIter<T: Display> = Iterator<Item = Msg<T>>;
 pub trait MsgIterable<T: Display> = IntoIterator<Item = Msg<T>>;
 
-///should wrap it self with something
 pub fn layout<T: Display>(content: Markup, msgs: impl MsgIterable<T>) -> Markup {
     html! {
         (DOCTYPE)
@@ -17,7 +16,7 @@ pub fn layout<T: Display>(content: Markup, msgs: impl MsgIterable<T>) -> Markup 
                 h1 {"Contact App"}
                 h2 {"A HTMX Demo"}
                 div #flashes {
-                    (flashy_flash(msgs.into_iter()))
+                    (dismissible_alerts(msgs.into_iter()))
                 }
                 hr;
                 (content)
@@ -54,50 +53,35 @@ fn head(title: &str) -> Markup {
     }
 }
 
-pub fn flashy_flash<T: Display>(msgs: impl MsgIterable<T>) -> Markup {
+fn lvl2alert_class(lvl: &Level) -> String {
+    let msg_type = match lvl {
+        Level::Debug => "danger",
+        Level::Info => "info",
+        Level::Success => "success",
+        Level::Warning => "warning",
+        Level::Error => "danger",
+    };
+    format!("alert-{msg_type}")
+}
+pub fn inline_msg<T: Display>(msg: Msg<T>) -> Markup {
+    let alert_class = lvl2alert_class(&msg.0);
+    html! {
+        span.alert.inline-err.(alert_class) {
+            (msg.1)
+        }
+    }
+}
+
+pub fn dismissible_alerts<T: Display>(msgs: impl MsgIterable<T>) -> Markup {
     html! {
         @for (lvl, msg) in msgs{
-            @match lvl {
-                axum_flash::Level::Debug => {
-                    div.alert.alert-debug.alert-dismissible.fade.show role="alert"{
-                        (msg)
-                        button.btn-close type="button" data-bs-dismiss="alert" aria-label="Close" {
-                            // span aria-hidden="true" {r#"&times;"#}
-                        }
-                    }
-                },
-                axum_flash::Level::Info => {
-                    div.alert.alert-info.alert-dismissible.fade.show role="alert"{
-                        (msg)
-                        button.btn-close type="button" data-bs-dismiss="alert" aria-label="Close" {
-                            // span aria-hidden="true" {r#"&times;"#}
-                        }
-                    }
-                },
-                axum_flash::Level::Warning => {
-                    div.alert.alert-warning.alert-dismissible.fade.show role="alert"{
-                        (msg)
-                        button.btn-close type="button" data-bs-dismiss="alert" aria-label="Close" {
-                            // span aria-hidden="true" {r#"&times;"#}
-                        }
-                    }
-                },
-                axum_flash::Level::Error => {
-                    div.alert.alert-error.alert-dismissible.fade.show role="alert"{
-                        (msg)
-                        button.btn-close type="button" data-bs-dismiss="alert" aria-label="Close" {
-                            // span aria-hidden="true" {r#"&times;"#}
-                        }
-                    }
-                },
-                axum_flash::Level::Success => {
-                    div.alert.alert-success.alert-dismissible.fade.show role="alert"{
-                        (msg)
-                        button.btn-close type="button" data-bs-dismiss="alert" aria-label="Close" {
-                            // span aria-hidden="true" {r#"&times;"#}
-                        }
-                    }
-                },
+            @let inner = html!{
+                (msg)
+                button.btn-close type="button" data-bs-dismiss="alert" aria-label="Close" {}
+            };
+            @let alert_class = lvl2alert_class(&lvl);
+            div.alert.alert-dismissible.fade.show.(alert_class) role="alert"{
+                    (inner) {}
             }
 
         }

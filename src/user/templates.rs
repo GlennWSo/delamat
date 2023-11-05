@@ -1,7 +1,8 @@
+use axum_flash::Level;
 use maud::{html, Markup};
 use std::fmt::Display;
 
-use crate::templates::{layout, MsgIterable};
+use crate::templates::{inline_msg, layout, MsgIterable};
 
 use super::NewUserInput;
 
@@ -13,9 +14,9 @@ pub fn new_template<T: Display>(
 ) -> Markup {
     let content = html! {
         h2 {"Create a Account"}
-        form hx-post="/user/new" hx-target="closest <body/>" "hx-target-500"="#flashes" {
+        form action="/user/new" method="post" hx-target="closest <body/>" "hx-target-500"="#flashes" {
             fieldset {
-                (name_input())
+                (name_input(NameInputState::Init))
                 div {
                     label for="email" { "email" }
                     (email_input(&input.email, "./email/validate", email_feedback))
@@ -98,7 +99,36 @@ fn email_input<T: Display>(init_value: &str, validation_url: &str, error_msg: Op
     }
 }
 
-fn name_input() -> Markup {
+pub enum NameError {
+    TooShort,
+    TooLong,
+    InvalidChar(char),
+    Occupied,
+    DBError(sqlx::Error),
+}
+pub enum NameInputState {
+    Init,
+    Invalid { value: Box<str>, error: NameError },
+    Valid(Box<str>),
+}
+impl NameInputState {
+    fn style(&self) -> &str {
+        match self {
+            NameInputState::Init => "",
+            NameInputState::Invalid { .. } => "box-shadow: 0 0 3px #CC0000",
+            NameInputState::Valid(_) => "box-shadow: 0 0 3px #36cc00;",
+        }
+    }
+    fn value(&self) -> &str {
+        match self {
+            NameInputState::Init => "",
+            NameInputState::Invalid { value, .. } => &value,
+            NameInputState::Valid(value) => &value,
+        }
+    }
+}
+
+pub fn name_input(state: NameInputState) -> Markup {
     html! {
         div.input_field hx-target="this" {
             label for="name" { "Name" }
@@ -108,44 +138,15 @@ fn name_input() -> Markup {
                 placeholder="Alias"
                 hx-post="./name/validate"
                 hx-params="*"
-                hx-trigger="change, keyup delay:350ms changed"{}
-        }
-
-    }
-}
-pub fn valid_name_input(value: &str) -> Markup {
-    html! {
-        div.input_field.valid hx-target="this" {
-            label for="name" { "Name" }
-            input #name
-                name="name"
-                type="text"
-                placeholder="Alias"
-                value=(value)
-                style="box-shadow: 0 0 3px #36cc00;"
-                hx-post="./name/validate"
-                hx-params="*"
-                hx-trigger="change, keyup delay:350ms changed"{}
-        }
-
-    }
-}
-pub fn invalid_name_input<E: Display>(value: &str, error: E) -> Markup {
-    html! {
-        div.input_field.valid hx-target="this" {
-            label for="name" { "Name" }
-            input #name
-                name="name"
-                type="text"
-                placeholder="Alias"
-                value=(value)
-                style="box-shadow: 0 0 3px #CC0000"
-                hx-post="./name/validate"
-                hx-params="*"
-                hx-trigger="change, keyup delay:350ms changed"{}
-            span.alert.alert-danger.inline-err role="alert" {
-                (error)
+                hx-trigger="change, keyup delay:350ms changed"
+                value=(state.value())
+                style=(state.style()) {}
+            @match state {
+                NameInputState::Invalid{error, ..} => (inline_msg((Level::Error, error))),
+                _ => span {},
             }
+
+
         }
 
     }

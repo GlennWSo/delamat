@@ -1,6 +1,6 @@
 pub mod contact;
 mod core;
 
-pub use core::{flashy_flash, layout, MsgIterable};
+pub use core::{dismissible_alerts, inline_msg, layout, MsgIterable};
 
 pub use maud::Markup;
