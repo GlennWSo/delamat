@@ -25,6 +25,8 @@ use maud::html;
 use serde::Deserialize;
 use sqlx::mysql::MySqlQueryResult;
 
+mod login;
+mod new;
 mod templates;
 
 use crate::{
@@ -34,8 +36,9 @@ use crate::{
     AppState,
 };
 
-use self::templates::{name_input, new_template, NameError, NameInputState};
 use crate::templates::Markup;
+
+use self::new::{get_create_form, post_new_user, validate_name};
 
 async fn email_validation(
     State(state): State<AppState>,
@@ -155,241 +158,12 @@ async fn validate_password_query(Query(q): Query<PasswordQuery>) -> Markup {
     q.get_feedback()
 }
 
-async fn get_new_user(flashes: IncomingFlashes) -> (IncomingFlashes, Markup) {
-    let body = new_template(flashes.iter(), None, None, NewUserInput::default());
-    (flashes, body)
-}
-
-#[derive(Deserialize, Debug, Default)]
-struct NewUserInput {
-    name: String,
-    password: String,
-    email: String,
-}
-
-struct ValidNewUser(NewUserInput);
-
-impl NewUserInput {
-    async fn validate(self, db: &DB) -> Result<ValidNewUser, (Self, NewUserError)> {
-        use NewUserError as E;
-        let name = NameInput {
-            name: self.name.clone().into(),
-        };
-        match name.validate(db).await {
-            NameInputState::Invalid { error, .. } => return Err((self, E::NameError(error))),
-            _ => (),
-        }
-
-        let feedback = validate_user_email(db, &self.email, None).await;
-        match feedback {
-            Ok(v) => match v.0 {
-                Ok(_) => (),
-                Err(e) => return Err((self, E::EmailError(e))),
-            },
-            Err(e) => return Err((self, E::DBError(e))),
-        };
-
-        let q: PasswordQuery = self.password.as_str().into();
-        match q.validate() {
-            Ok(_) => (),
-            Err(e) => return Err((self, E::PasswordError(e))),
-        };
-
-        Ok(ValidNewUser(self))
-    }
-}
-
-/// number of bytes(u8) used for storing salts
-const SALT_LENGTH: usize = 16;
-
-impl ValidNewUser {
-    fn demote(self) -> NewUserInput {
-        self.0
-    }
-    async fn insert(self, db: &DB) -> Result<MySqlQueryResult, (NewUserInput, sqlx::Error)> {
-        let mut salt_bytes = [0u8; SALT_LENGTH];
-        OsRng.fill_bytes(&mut salt_bytes);
-        let salt = SaltString::encode_b64(&salt_bytes).expect("salt string invariant violated");
-        let input = &self.0;
-        let argon2 = Argon2::default();
-        let hash = argon2
-            .hash_password(input.password.as_bytes(), &salt)
-            .unwrap() // TODO remove unwrap
-            .to_string();
-
-        let res = sqlx::query!(
-            "
-            insert into users (name, email, salt, password_hash)
-            values (?, ?, ?, ?)
-            ",
-            input.name,
-            input.email,
-            &salt_bytes[..],
-            hash,
-        )
-        .execute(db.conn())
-        .await;
-        match res {
-            Ok(v) => Ok(v),
-            Err(e) => Err((self.demote(), e)),
-        }
-    }
-}
-
-enum NewUserError {
-    PasswordError(PasswordFormatError),
-    EmailError(EmailError),
-    NameError(NameError),
-    DBError(sqlx::Error),
-}
-impl Display for NewUserError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            NewUserError::PasswordError(e) => write!(f, "{e}"),
-            NewUserError::EmailError(e) => write!(f, "{e}"),
-            NewUserError::DBError(e) => write!(f, "{e}"),
-            NewUserError::NameError(e) => write!(f, "{e}"),
-        }
-    }
-}
-
-#[derive(Deserialize)]
-struct NameInput {
-    name: Box<str>,
-}
-
-struct ValidName(NameInput);
-impl Display for NameError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            NameError::TooShort => write!(f, "name is too short"),
-            NameError::TooLong => write!(f, "name is too long"),
-            NameError::InvalidChar(c) => write!(f, "name has invalid char: {}", c),
-            NameError::Occupied => write!(f, "name is occupied"),
-            NameError::DBError(e) => write!(f, "Database failed with: {}", e),
-        }
-    }
-}
-
-struct InvalidName {
-    input: NameInput,
-    e: NameError,
-}
-
-impl NameInput {
-    const MIN: u8 = 4;
-    const MAX: u8 = 32;
-    fn validate_char(c: &char) -> bool {
-        if c.is_alphabetic() {
-            return true;
-        }
-        if c.is_numeric() {
-            return true;
-        }
-        if "_-".contains([*c]) {
-            return true;
-        }
-        false
-    }
-    async fn find_user_id(&self, db: &DB) -> Result<Option<i32>, sqlx::Error> {
-        Ok(
-            sqlx::query!("select id from users where name = ?", self.name.as_ref())
-                .fetch_optional(db.conn())
-                .await?
-                .map(|r| r.id),
-        )
-    }
-    async fn validate(self, db: &DB) -> NameInputState {
-        use NameError as Error;
-
-        if let Some(c) = self.name.chars().find(|c| !Self::validate_char(c)) {
-            let e = Error::InvalidChar(c);
-            return NameInputState::Invalid {
-                value: self.name,
-                error: e,
-            };
-        };
-
-        if (self.name.len() as u8) < Self::MIN {
-            let e = Error::TooShort;
-            return NameInputState::Invalid {
-                value: self.name,
-                error: e,
-            };
-        }
-        if (self.name.len() as u8) > Self::MAX {
-            return NameInputState::Invalid {
-                value: self.name,
-                error: Error::TooLong,
-            };
-        }
-        match self.find_user_id(db).await {
-            Ok(id) => {
-                if id.is_some() {
-                    return NameInputState::Invalid {
-                        value: self.name,
-                        error: Error::Occupied,
-                    };
-                }
-            }
-            Err(e) => {
-                return NameInputState::Invalid {
-                    value: self.name,
-                    error: Error::DBError(e),
-                }
-            }
-        }
-        NameInputState::Valid(self.name)
-    }
-}
-
-async fn validate_name(State(state): State<AppState>, Form(input): Form<NameInput>) -> Markup {
-    let input_state = input.validate(&state.db).await;
-    name_input(input_state)
-}
-
-async fn post_new_user(
-    State(state): State<AppState>,
-    flash: Flash,
-    Form(input): Form<NewUserInput>,
-) -> impl IntoResponse {
-    use NewUserError as E;
-    match input.validate(&state.db).await {
-        Ok(valid_input) => {
-            let res = valid_input.insert(&state.db).await;
-            match res {
-                Ok(v) => {
-                    log::info!("created new user, details: {:#?}", v);
-                    (flash.success("created new user"), Redirect::to("/user/new")).into_response()
-                }
-                Err((input, db_error)) => {
-                    // new_template([(Level::Error, dbg!(db_error))], None, None, input)
-                    //     .into_response()
-                    let content = dismissible_alerts([(Level::Error, dbg!(db_error))]);
-                    (StatusCode::INTERNAL_SERVER_ERROR, content).into_response()
-                }
-            }
-        }
-        Err((bad_input, e)) => match e {
-            E::PasswordError(e) => new_template(None, None, Some(e), bad_input).into_response(),
-            E::EmailError(e) => new_template(None, Some(e), None, bad_input).into_response(),
-            E::DBError(e) => {
-                new_template([(Level::Debug, dbg!(e))], None, None, bad_input).into_response()
-            }
-            _ => new_template([(Level::Debug, dbg!("unknown err"))], None, None, bad_input)
-                .into_response(),
-        },
-    }
-}
-
-#[allow(dead_code)]
 #[derive(Debug, Default, Clone, sqlx::FromRow)]
 struct User {
     id: i32,
     password_hash: String,
     name: String,
     email: String,
-    salt: Vec<u8>, // [u8; 16]
 }
 
 impl AuthUser<i32> for User {
@@ -439,7 +213,7 @@ pub fn make_auth(app: &AppState) -> Router<AppState> {
         .route("/pro", get(protected_info))
         .route_layer(RequireAuthorizationLayer::<i32, User>::login())
         .route("/new", post(post_new_user))
-        .route("/new", get(get_new_user))
+        .route("/new", get(get_create_form))
         .route("/email/validate", get(email_validation))
         .route("/password/validate", get(validate_password_query))
         .route("/name/validate", post(validate_name))
