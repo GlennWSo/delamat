@@ -3,7 +3,7 @@ use argon2::{
         rand_core::{OsRng, RngCore},
         SaltString,
     },
-    Argon2, PasswordHash, PasswordHasher,
+    Argon2, PasswordHasher,
 };
 
 const SALT_LENGTH: usize = 16;

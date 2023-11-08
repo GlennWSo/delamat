@@ -1,12 +1,5 @@
 use std::fmt::Display;
 
-use argon2::{
-    password_hash::{
-        rand_core::{OsRng, RngCore},
-        SaltString,
-    },
-    Argon2, PasswordHasher,
-};
 use axum::{
     extract::State,
     http::StatusCode,
@@ -40,7 +33,7 @@ pub async fn get_create_form(flashes: IncomingFlashes) -> (IncomingFlashes, Mark
     (flashes, body)
 }
 
-pub fn create_form_template<T: Display>(msgs: impl MsgIterable<T>) -> Markup {
+pub fn create_form_template<T: Display>(_msgs: impl MsgIterable<T>) -> Markup {
     let no_msg: Option<&str> = None;
     let no_msgs: Option<(Level, &str)> = None;
     let content = html! {
@@ -112,7 +105,6 @@ pub async fn post_new_user(
     flash: Flash,
     Form(input): Form<CreateUserRequest>,
 ) -> impl IntoResponse {
-    use NewUserError as E;
     match input.validate(&state.db).await {
         Ok(valid_input) => {
             let res = valid_input.insert(&state.db).await;
@@ -121,7 +113,7 @@ pub async fn post_new_user(
                     log::info!("created new user, details: {:#?}", v);
                     (flash.success("created new user"), Redirect::to("/user/new")).into_response()
                 }
-                Err((input, db_error)) => {
+                Err((_input, db_error)) => {
                     let content = dismissible_alerts([(Level::Error, dbg!(db_error))]);
                     (StatusCode::INTERNAL_SERVER_ERROR, content).into_response()
                 }
@@ -169,9 +161,6 @@ impl CreateUserRequest {
     }
 }
 struct ValidNewUser(CreateUserRequest);
-
-/// number of bytes(u8) used for storing salts
-const SALT_LENGTH: usize = 16;
 
 impl ValidNewUser {
     fn demote(self) -> CreateUserRequest {

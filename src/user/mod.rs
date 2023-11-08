@@ -1,20 +1,14 @@
 use std::fmt::Display;
 
-use argon2::{
-    password_hash::{
-        rand_core::{OsRng, RngCore},
-        SaltString,
-    },
-    Argon2, PasswordHasher,
-};
+
 use axum::{
     extract::{Query, State},
     http::StatusCode,
-    response::{IntoResponse, Redirect},
+    response::{IntoResponse},
     routing::{get, post},
-    Extension, Form, Router,
+    Extension, Router,
 };
-use axum_flash::{Flash, IncomingFlashes, Level};
+
 use axum_login::{
     axum_sessions::{async_session::MemoryStore, SessionLayer},
     secrecy::SecretVec,
@@ -23,16 +17,14 @@ use axum_login::{
 use log::error;
 use maud::html;
 use serde::Deserialize;
-use sqlx::mysql::MySqlQueryResult;
+
 
 mod login;
 mod new;
 mod templates;
 
 use crate::{
-    db::DB,
-    email::{validate_user_email, EmailError, EmailQuery},
-    templates::dismissible_alerts,
+    email::{validate_user_email, EmailQuery},
     AppState,
 };
 

@@ -1,11 +1,10 @@
-use axum_flash::Level;
+
 use maud::{html, Markup};
-use serde::Deserialize;
+
 use std::fmt::Display;
 
 use crate::{
-    db::DB,
-    templates::{inline_msg, layout, MsgIterable},
+    templates::{MsgIterable},
 };
 
 pub fn email_input<T: Display>(
