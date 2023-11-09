@@ -1,11 +1,25 @@
 use std::fmt::Display;
 
 use axum::{extract::State, Form};
-use axum_flash::Level;
-use maud::{html, Markup};
+use axum_login::axum_sessions::async_session::sha2::digest::generic_array::typenum::Integer;
+use maud::Markup;
 use serde::Deserialize;
 
-use crate::{db::DB, templates::inline_msg, AppState};
+use crate::{
+    db::DB,
+    user::new::input::{validate_char, InputState},
+    AppState,
+};
+
+use super::input::{Feedback, InputAttributes, InputField};
+
+const NAME_CFG: InputAttributes = InputAttributes {
+    label: "Name",
+    name: "name",
+    kind: "text",
+    placeholder: "Alice",
+    validate_api: "./name/validate",
+};
 
 pub enum NameError {
     TooShort,
@@ -29,21 +43,10 @@ impl Display for NameError {
 pub struct NameQuery {
     pub(crate) name: Box<str>,
 }
+
 impl NameQuery {
     const MIN: u8 = 4;
     const MAX: u8 = 32;
-    fn validate_char(c: &char) -> bool {
-        if c.is_alphabetic() {
-            return true;
-        }
-        if c.is_numeric() {
-            return true;
-        }
-        if "_-".contains([*c]) {
-            return true;
-        }
-        false
-    }
     async fn find_user_id(&self, db: &DB) -> Result<Option<i32>, sqlx::Error> {
         Ok(
             sqlx::query!("select id from users where name = ?", self.name.as_ref())
@@ -52,102 +55,49 @@ impl NameQuery {
                 .map(|r| r.id),
         )
     }
-    pub async fn validate(self, db: &DB) -> NameInput {
+}
+
+impl Feedback<NameError> for NameQuery {
+    fn into_value(self) -> Box<str> {
+        self.name
+    }
+    const CFG: &'static InputAttributes = &NAME_CFG;
+    async fn validate(&self, db: &DB) -> Option<NameError> {
         use NameError as Error;
 
-        if let Some(c) = self.name.chars().find(|c| !Self::validate_char(c)) {
+        if let Some(c) = self.name.chars().find(|c| !validate_char(c)) {
             let e = Error::InvalidChar(c);
-            return NameInput::Invalid {
-                value: self.name,
-                error: e,
-            };
+            return Some(e);
         };
 
         if (self.name.len() as u8) < Self::MIN {
-            let e = Error::TooShort;
-            return NameInput::Invalid {
-                value: self.name,
-                error: e,
-            };
+            return Some(Error::TooShort);
         }
         if (self.name.len() as u8) > Self::MAX {
-            return NameInput::Invalid {
-                value: self.name,
-                error: Error::TooLong,
-            };
+            return Some(Error::TooLong);
         }
         match self.find_user_id(db).await {
             Ok(id) => {
                 if id.is_some() {
-                    return NameInput::Invalid {
-                        value: self.name,
-                        error: Error::Occupied,
-                    };
+                    return Some(Error::Occupied);
                 }
             }
             Err(e) => {
-                return NameInput::Invalid {
-                    value: self.name,
-                    error: Error::DBError(e),
-                }
+                return Some(Error::DBError(e));
             }
         }
-        NameInput::Valid(self.name)
+        None
     }
 }
-pub enum NameInput {
-    Init,
-    Invalid { value: Box<str>, error: NameError },
-    Valid(Box<str>),
+
+type InputName = InputField<NameError>;
+pub fn input_name() -> Markup {
+    InputName::new(&NAME_CFG).into_markup()
 }
 
-impl Display for NameInput {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.markup().into_string())
-    }
-}
-impl NameInput {
-    pub fn markup(&self) -> Markup {
-        html! {
-            div.input_field hx-target="this" {
-                label for="name" { "Name" }
-                input #name
-                    name="name"
-                    type="text"
-                    placeholder="Alias"
-                    hx-post="./name/validate"
-                    hx-params="*"
-                    hx-trigger="change, keyup delay:350ms changed, htmx:validation:validate"
-                    value=(self.value())
-                    style=(self.style()) {}
-                @match self {
-                    NameInput::Invalid{error, ..} => (inline_msg((Level::Error, error))),
-                    _ => span {},
-                }
-
-
-            }
-
-        }
-    }
-    fn style(&self) -> &str {
-        match self {
-            NameInput::Init => "",
-            NameInput::Invalid { .. } => "box-shadow: 0 0 3px #CC0000",
-            NameInput::Valid(_) => "box-shadow: 0 0 3px #36cc00;",
-        }
-    }
-    fn value(&self) -> &str {
-        match self {
-            NameInput::Init => "",
-            NameInput::Invalid { value, .. } => &value,
-            NameInput::Valid(value) => &value,
-        }
-    }
-}
-pub async fn validate_name(
+pub async fn validate_handler(
     State(state): State<AppState>,
     Form(name_query): Form<NameQuery>,
 ) -> Markup {
-    name_query.validate(&state.db).await.markup()
+    name_query.into_input(&state.db).await.into_markup()
 }

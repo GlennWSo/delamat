@@ -11,6 +11,7 @@ use maud::{html, Markup};
 use serde::Deserialize;
 use sqlx::mysql::MySqlQueryResult;
 
+use crate::user::new::{input::InputState, name::input_name};
 use crate::{
     db::DB,
     email::{validate_user_email, EmailError},
@@ -22,9 +23,13 @@ use crate::{
     AppState,
 };
 
+mod email;
+mod input;
 mod name;
-use self::name::{NameError, NameInput, NameQuery};
-pub use name::validate_name;
+
+pub use input::Feedback;
+pub use name::validate_handler;
+use name::{NameError, NameQuery};
 
 use super::{login::create_hash, PasswordFormatError};
 
@@ -40,7 +45,7 @@ pub fn create_form_template<T: Display>(_msgs: impl MsgIterable<T>) -> Markup {
         h2 {"Create a Account"}
         form  method="post" hx-post="/user/new" hx-target="closest <body/>" "hx-target-500"="#flashes" "hx-target-406"="#flashes" {
             fieldset {
-                (NameInput::Init.markup())
+                (input_name())
                 div {
                     label for="email" { "email" }
                     (email_input("", "./email/validate", no_msg))
@@ -137,9 +142,8 @@ impl CreateUserRequest {
         let name = NameQuery {
             name: self.name.clone().into(),
         };
-        match name.validate(db).await {
-            NameInput::Invalid { error, .. } => return Err((self, E::NameError(error))),
-            _ => (),
+        if let Some(error) = name.validate(db).await {
+            return Err((self, E::NameError(error)));
         }
 
         let feedback = validate_user_email(db, &self.email, None).await;

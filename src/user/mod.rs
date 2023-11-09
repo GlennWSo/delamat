@@ -1,10 +1,9 @@
 use std::fmt::Display;
 
-
 use axum::{
     extract::{Query, State},
     http::StatusCode,
-    response::{IntoResponse},
+    response::IntoResponse,
     routing::{get, post},
     Extension, Router,
 };
@@ -18,7 +17,6 @@ use log::error;
 use maud::html;
 use serde::Deserialize;
 
-
 mod login;
 mod new;
 mod templates;
@@ -30,7 +28,7 @@ use crate::{
 
 use crate::templates::Markup;
 
-use self::new::{get_create_form, post_new_user, validate_name};
+use self::new::{get_create_form, post_new_user, validate_handler};
 
 async fn email_validation(
     State(state): State<AppState>,
@@ -208,7 +206,7 @@ pub fn make_auth(app: &AppState) -> Router<AppState> {
         .route("/new", get(get_create_form))
         .route("/email/validate", get(email_validation))
         .route("/password/validate", get(validate_password_query))
-        .route("/name/validate", post(validate_name))
+        .route("/name/validate", post(validate_handler))
         .route("/logout", get(logout_handler))
         .route("/login", get(login_handler))
         .layer(auth_layer)
