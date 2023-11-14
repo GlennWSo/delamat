@@ -239,6 +239,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "axum-htmx"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe499e4aac3ca1bbe39d9155a4705510551c9bf30769c320ee513e1c3db96747"
+dependencies = [
+ "axum",
+]
+
+[[package]]
 name = "axum-login"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1080,6 +1089,7 @@ dependencies = [
  "argon2",
  "axum",
  "axum-flash",
+ "axum-htmx",
  "axum-login",
  "email_address",
  "futures-util",

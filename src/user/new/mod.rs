@@ -2,30 +2,28 @@ use std::fmt::Display;
 
 use axum::{
     extract::State,
-    http::StatusCode,
+    http::{StatusCode, Uri},
     response::{IntoResponse, Redirect},
     Form,
 };
 use axum_flash::{Flash, IncomingFlashes, Level};
+use axum_htmx::responders::HxLocation;
 use maud::{html, Markup};
 use serde::Deserialize;
 use sqlx::mysql::MySqlQueryResult;
 
-use crate::user::new::{input::InputState, name::input_name};
 use crate::{
     db::DB,
     email::{validate_user_email, EmailError},
     templates::{dismissible_alerts, layout, MsgIterable},
-    user::{
-        templates::{email_input, password_input},
-        PasswordQuery,
-    },
+    user::{templates::password_input, PasswordQuery},
     AppState,
 };
 
-mod email;
+pub mod email;
 mod input;
 mod name;
+pub mod password;
 
 pub use input::Feedback;
 pub use name::validate_handler;
@@ -38,72 +36,69 @@ pub async fn get_create_form(flashes: IncomingFlashes) -> (IncomingFlashes, Mark
     (flashes, body)
 }
 
-pub fn create_form_template<T: Display>(_msgs: impl MsgIterable<T>) -> Markup {
-    let no_msg: Option<&str> = None;
-    let no_msgs: Option<(Level, &str)> = None;
+pub fn create_form_template<T: Display>(msgs: impl MsgIterable<T>) -> Markup {
+    // let no_msg: Option<&str> = None;
+    // let no_msgs: Option<(Level, &str)> = None;
+    let not_firm_msg = dismissible_alerts([(Level::Error, "Passwords do not match")]);
+    let form_script = format!(
+        "on htmx:beforeRequest(srcElement)
+                log the event then
+                if #password.value is #confirm-password.value
+                    log 'password confirmed'
+                else
+                    log srcElement.id
+                    if srcElement.id is 'newUser'
+                        send newPass to #confirm-password
+                        then set #flashes's innerHTML to '{}'
+                        then halt the event",
+        not_firm_msg.into_string()
+    );
+
     let content = html! {
         h2 {"Create a Account"}
-        form  method="post" hx-post="/user/new" hx-target="closest <body/>" "hx-target-500"="#flashes" "hx-target-406"="#flashes" {
+        form #newUser
+            method="post"
+            hx-post="/user/new"
+            hx-target="closest <body/>"
+            hx-ext="morph"
+            "hx-target-500"="#flashes"
+            "hx-target-406"="#flashes"
+            _=(form_script)
+         {
             fieldset {
-                (input_name())
-                div {
-                    label for="email" { "email" }
-                    (email_input("", "./email/validate", no_msg))
-                }
-                div {
-                    label for="password" { "Password" }
-                    (password_input("", no_msg))
-                }
+                (name::init_input())
+                (email::init_input())
+                (password::init_input())
                 div {
                     label for="confirm-password" { "Confirm Password" }
                     input #confirm-password type="password" _="
                         on newpass or change or keyup debounced at 350ms  
-                        if my value equals #password.value and my value is not ''
-                            remove @hidden from #repeat-ok
-                            then add @hidden to #repeat-nok
-                            then send confirm(ok: true) to next <button/>
-                        else if my.value is not ''
-                            then add @hidden to #repeat-ok
+                        if my value equals #password.value 
+                            add @hidden to #repeat-nok then
+                            remove .nok from me
+                            then if my value is not ''
+                                -- remove @hidden from #repeat-ok
+                                add .ok to me
+                            end
+                        else 
+                            -- add @hidden to #repeat-ok
+                            add .nok to me then remove .ok from me
                             then remove @hidden from #repeat-nok
-                            then send confirm(ok: false) to next <button/>
-                        else
-                            send confirm(ok: false) to next <button/>
+                    
                     "
                     ;
                     span #repeat-ok hidden {"✅"}
                     span.alert.alert-danger.inline-err hidden #repeat-nok role="alert" {
-                        "Passwords do not match."
+                        "Passwords do not match"
                     }
                 }
-                button _="
-                    on load set :feedback to {password: false, email: false, confirm: false}
-                        -- then add @disabled on me
-                    end
-                    
-                    def update_me()
-                        if :feedback.password and :feedback.email and :feedback.confirm
-                            remove @disabled
-                        else
-                            log 'add @disabled'
-                            
-                    end
-                
-                    on password(ok) 
-                        set :feedback.password to ok then update_me()
-                    end
-                    on email(ok) 
-                        set :feedback.email to ok then update_me()
-                    end
-                    on confirm(ok) 
-                        set :feedback.confirm to ok then update_me()
-                    end
-                    "
-                    { "save" }
+                button
+                {"save"}
 
             }
         }
     };
-    layout(content, no_msgs)
+    layout(content, msgs)
 }
 pub async fn post_new_user(
     State(state): State<AppState>,
@@ -142,7 +137,7 @@ impl CreateUserRequest {
         let name = NameQuery {
             name: self.name.clone().into(),
         };
-        if let Some(error) = name.validate(db).await {
+        if let Err(error) = name.validate(db).await {
             return Err((self, E::NameError(error)));
         }
 
@@ -200,9 +195,9 @@ enum NewUserError {
 impl Display for NewUserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            NewUserError::PasswordError(e) => write!(f, "{e}"),
-            NewUserError::EmailError(e) => write!(f, "{e}"),
-            NewUserError::NameError(e) => write!(f, "{e}"),
+            NewUserError::PasswordError(e) => write!(f, "Password: {e}"),
+            NewUserError::EmailError(e) => write!(f, "Email: {e}"),
+            NewUserError::NameError(e) => write!(f, "Name: {e}"),
             NewUserError::DBError(e) => write!(f, "{e}"),
         }
     }

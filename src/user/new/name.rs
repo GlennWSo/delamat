@@ -1,24 +1,20 @@
 use std::fmt::Display;
 
 use axum::{extract::State, Form};
-use axum_login::axum_sessions::async_session::sha2::digest::generic_array::typenum::Integer;
 use maud::Markup;
 use serde::Deserialize;
 
-use crate::{
-    db::DB,
-    user::new::input::{validate_char, InputState},
-    AppState,
-};
+use crate::{db::DB, user::new::input::validate_char, AppState};
 
-use super::input::{Feedback, InputAttributes, InputField};
+use super::input::{Config, Feedback, InputField};
 
-const NAME_CFG: InputAttributes = InputAttributes {
+const NAME_CFG: Config = Config {
     label: "Name",
     name: "name",
-    kind: "text",
-    placeholder: "Alice",
-    validate_api: "./name/validate",
+    kind: Some("text"),
+    placeholder: Some("Alice"),
+    validate_api: Some("./name/validate"),
+    hyper_script: None,
 };
 
 pub enum NameError {
@@ -61,37 +57,37 @@ impl Feedback<NameError> for NameQuery {
     fn into_value(self) -> Box<str> {
         self.name
     }
-    const CFG: &'static InputAttributes = &NAME_CFG;
-    async fn validate(&self, db: &DB) -> Option<NameError> {
+    const CFG: &'static Config = &NAME_CFG;
+    async fn validate(&self, db: &DB) -> Result<(), NameError> {
         use NameError as Error;
 
         if let Some(c) = self.name.chars().find(|c| !validate_char(c)) {
             let e = Error::InvalidChar(c);
-            return Some(e);
+            return Err(e);
         };
 
         if (self.name.len() as u8) < Self::MIN {
-            return Some(Error::TooShort);
+            return Err(Error::TooShort);
         }
         if (self.name.len() as u8) > Self::MAX {
-            return Some(Error::TooLong);
+            return Err(Error::TooLong);
         }
         match self.find_user_id(db).await {
             Ok(id) => {
                 if id.is_some() {
-                    return Some(Error::Occupied);
+                    return Err(Error::Occupied);
                 }
             }
             Err(e) => {
-                return Some(Error::DBError(e));
+                return Err(Error::DBError(e));
             }
         }
-        None
+        Ok(())
     }
 }
 
 type InputName = InputField<NameError>;
-pub fn input_name() -> Markup {
+pub fn init_input() -> Markup {
     InputName::new(&NAME_CFG).into_markup()
 }
 

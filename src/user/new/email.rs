@@ -12,14 +12,15 @@ use crate::{
     AppState,
 };
 
-use super::input::{Feedback, InputAttributes, InputField};
+use super::input::{Config, Feedback, InputField};
 
-const CFG: InputAttributes = InputAttributes {
+const CFG: Config = Config {
     label: "Email",
     name: "email",
-    kind: "email",
-    placeholder: "alice@example.org",
-    validate_api: "./email/validate",
+    kind: Some("text"),
+    placeholder: Some("alice@example.org"),
+    validate_api: Some("./email/validate"),
+    hyper_script: None,
 };
 
 #[derive(Debug)]
@@ -54,25 +55,25 @@ impl Feedback<EmailError> for EmailQuery {
     fn into_value(self) -> Box<str> {
         self.email
     }
-    const CFG: &'static InputAttributes = &CFG;
-    async fn validate(&self, db: &DB) -> Option<EmailError> {
+    const CFG: &'static Config = &CFG;
+    async fn validate(&self, db: &DB) -> Result<(), EmailError> {
         use EmailError as Error;
         if let Err(e) = EmailAddress::from_str(&self.email) {
-            return Some(Error::FormatError(e));
+            return Err(Error::FormatError(e));
         };
         let id = match db.find_user_email(&self.email).await {
             Ok(id) => id,
-            Err(e) => return Some(Error::DBError(e)),
+            Err(e) => return Err(Error::DBError(e)),
         };
         match id {
-            Some(_) => Some(Error::Occupied),
-            None => None,
+            Some(_) => Err(Error::Occupied),
+            None => Ok(()),
         }
     }
 }
 
 type InputEmail = InputField<EmailError>;
-pub fn input_name() -> Markup {
+pub fn init_input() -> Markup {
     InputEmail::new(&CFG).into_markup()
 }
 

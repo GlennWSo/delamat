@@ -23,6 +23,7 @@ log = "0.4.20"
 terminal-link = "0.1.0"
 axum-login = { version = "0.6.0", features=["mysql"]} 
 argon2 = "0.5.2"
+axum-htmx = "0.4.0"
 # percy-dom = "0.9.6"
 # html-macro = "0.2.2"
 # futures-core = "0.3.28"

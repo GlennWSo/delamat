@@ -38,16 +38,20 @@ fn head(title: &str) -> Markup {
                 integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN"
                 crossorigin="anonymous";
             script
-                src="https://unpkg.com/htmx.org@1.9.5"
-                integrity="sha384-xcuj3WpfgjlKF+FXhSQFQ0ZNr39ln+hwjN3npfM9VBnUskLolQAcN80McRIVOPuO"
+                src="https://unpkg.com/htmx.org@1.9.8"
+                integrity="sha384-rgjA7mptc2ETQqXoYC3/zJvkU7K/aP44Y+z7xQuJiVnB/422P/Ak+F/AqFR7E4Wr"
                 crossorigin="anonymous"{}
             script src="https://unpkg.com/htmx.org@1.9.3/dist/ext/response-targets.js" {}
+            script src="https://unpkg.com/idiomorph" {}
             script src="https://unpkg.com/hyperscript.org@0.9.12" {}
             style {
                 "body {padding-left: 1em}"
                 "td {padding-right: 1em}"
                 "input {margin: 0.3em}"
                 ".inline-err {padding: 0.3em 1em}"
+                ".ok {box-shadow: 0 0 3px #36cc00}"
+                ".nok {box-shadow: 0 0 3px #cc0000}"
+
             }
         }
     }

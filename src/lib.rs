@@ -1,6 +1,7 @@
 #![feature(trait_alias)]
 #![feature(type_alias_impl_trait)]
 #![feature(async_fn_in_trait)]
+#![feature(const_trait_impl)]
 
 use axum::extract::FromRef;
 use axum_flash::Key;
