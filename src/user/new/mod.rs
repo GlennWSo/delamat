@@ -58,6 +58,7 @@ pub fn create_form_template<T: Display>(msgs: impl MsgIterable<T>) -> Markup {
         h2 {"Create a Account"}
         form #newUser
             method="post"
+            novalidate
             hx-post="/user/new"
             hx-target="closest <body/>"
             hx-ext="morph"
@@ -69,20 +70,20 @@ pub fn create_form_template<T: Display>(msgs: impl MsgIterable<T>) -> Markup {
                 (name::init_input())
                 (email::init_input())
                 (password::init_input())
-                div {
+                div.form-group {
                     label for="confirm-password" { "Confirm Password" }
-                    input #confirm-password type="password" _="
+                    input #confirm-password.form-control type="password" _="
                         on newpass or change or keyup debounced at 350ms  
                         if my value equals #password.value 
                             add @hidden to #repeat-nok then
-                            remove .nok from me
+                            remove .is-invalid from me
                             then if my value is not ''
                                 -- remove @hidden from #repeat-ok
-                                add .ok to me
+                                add .is-valid to me
                             end
                         else 
                             -- add @hidden to #repeat-ok
-                            add .nok to me then remove .ok from me
+                            add .is-invalid to me then remove .is-valid from me
                             then remove @hidden from #repeat-nok
                     
                     "
